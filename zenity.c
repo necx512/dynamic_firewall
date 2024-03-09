@@ -91,7 +91,7 @@ int netlinkft(void)
   }
 
   /* Read message from kernel */
-  memset(nlh, 0, NLMSG_SPACE(MAX_PAYLOAD));
+  /* memset(nlh, 0, NLMSG_SPACE(MAX_PAYLOAD));
 
   rc = recvmsg(sock_fd, &msg, 0);
   if (rc < 0) {
@@ -100,7 +100,7 @@ int netlinkft(void)
     return 1;
   }
 
-  printf("Received from kernel: %s\n", NLMSG_DATA(nlh));
+  printf("Received from kernel: %s\n", NLMSG_DATA(nlh));*/
 
   /* Close Netlink Socket */
   close(sock_fd);
