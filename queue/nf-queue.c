@@ -7,6 +7,7 @@
 #include <time.h>
 #include <arpa/inet.h>
 #include <linux/ip.h>
+#include <linux/udp.h>
 
 #include <libmnl/libmnl.h>
 #include <linux/netfilter.h>
@@ -20,7 +21,93 @@
 /* only for NFQA_CT, not needed otherwise: */
 #include <linux/netfilter/nfnetlink_conntrack.h>
 
+#include <assert.h>
 static struct mnl_socket *nl;
+
+struct dns_queries
+{
+	struct dns_query_entry *entries;	
+	int nb_queries;
+};
+struct dns_query_entry
+{
+	char *name;
+	unsigned short type;
+	unsigned short class;
+
+};
+
+
+
+struct dnshdr { // https://packetstormsecurity.com/files/36299/dnssmurf.c.html
+  unsigned short int id;
+  unsigned char  rd:1;           /* recursion desired */
+  unsigned char  tc:1;           /* truncated message */
+  unsigned char  aa:1;           /* authoritive answer */
+  unsigned char  opcode:4;       /* purpose of message */
+  unsigned char  qr:1;           /* response flag */
+  unsigned char  rcode:4;        /* response code */
+  unsigned char  unused:2;       /* unused bits */
+  unsigned char  pr:1;           /* primary server required (non standard) */
+  unsigned char  ra:1;           /* recursion available */
+  unsigned short int que_num;
+  unsigned short int rep_num;
+  unsigned short int num_rr;
+  unsigned short int num_rrsup;
+};
+
+static struct dns_queries *export_dns_queries(struct dnshdr *dnshdr){
+	struct dns_queries *queries = malloc(sizeof(*queries));
+	queries->nb_queries = ntohs(dnshdr->que_num);
+	queries->entries = malloc( (queries->nb_queries) * sizeof(struct dns_query_entry));
+
+
+	unsigned char *ptr = (unsigned char *)(dnshdr+1);
+
+
+	assert(queries->nb_queries == 1); //on a pas testé sur plus donc pour le moment on reste sur 1
+	for(int query_idx = 0 ; query_idx < queries->nb_queries ; ++query_idx){
+
+		// get the size of the domain name
+		int len_str=0;
+		while(*ptr != 0){
+			ptr++;
+			len_str++;
+		}
+		ptr = ptr - len_str;
+
+		// Allocate place for storing the domain name
+		queries->entries[query_idx].name = calloc(len_str,1);
+
+		// copy the domain name
+		int name_idx=0;
+		while(*ptr != 0){
+			int size=*ptr;
+			for(int i=0;i<size;++i){
+				queries->entries[query_idx].name[name_idx++] = ptr[1+i];//off by one because of length
+			}
+			queries->entries[query_idx].name[name_idx++] = '.';//off by one because of length
+			ptr = ptr + size + 1;
+		}
+		ptr++;
+
+		// copy the type
+		queries->entries[query_idx].type = *(unsigned short *)ptr;
+		ptr+=2;
+
+		queries->entries[query_idx].class = *(unsigned short *)ptr;
+		ptr+=2;
+	}
+
+	return queries;
+}
+
+void free_dns_queries(struct dns_queries *queries){
+	for(int query_idx = 0 ; query_idx < queries->nb_queries ; ++query_idx){
+		free(queries->entries[query_idx].name);
+	}
+	free(queries);
+}
 
 static void
 nfq_send_verdict(int queue_num, uint32_t id)
@@ -92,11 +179,30 @@ static int queue_cb(const struct nlmsghdr *nlh, void *data)
 	//iph->saddr
 	//https://github.com/jvehent/nfqueue_recorder/blob/master/nfqueue_recorder.c
 
+	struct udphdr *udphdr = (struct udphdr *)(iph+1);
+	if(iph->protocol == 0x11 && udphdr->source == 0x3500) //DNS on UDP
+	{
+		struct dnshdr *dnshdr = (struct dnshdr *)(udphdr+1);
+		int nb_questions = ntohs(dnshdr->que_num);
+		int nb_replies = ntohs(dnshdr->rep_num);
+		printf("#question: %x\n",nb_questions);
+		printf("#reply: %x\n",nb_replies);
+		struct dns_queries *queries = export_dns_queries(dnshdr);
+		printf("%s\n",queries->entries[0].name);
+		printf("ok\n");
+
+		free_dns_queries(queries);
 
 
-	printf("IP DST = %x\n",iph->daddr);
+
+		printf("\n\n");
+
+	}
+				  
+
+/*	printf("IP DST = %x\n",iph->daddr);
         printf("packet received (id=%u hw=0x%04x hook=%u, payload len %u",
-                id, ntohs(ph->hw_protocol), ph->hook, plen);
+                id, ntohs(ph->hw_protocol), ph->hook, plen);*/
 
         /*
          * ip/tcp checksums are not yet valid, e.g. due to GRO/GSO.
@@ -116,6 +222,8 @@ static int queue_cb(const struct nlmsghdr *nlh, void *data)
 
 int main(int argc, char *argv[])
 {
+	assert(sizeof(struct dnshdr) == 12);
+	printf("sizeof dnshdr OK\n");
         char *buf;
         /* largest possible packet payload, plus netlink data overhead: */
         size_t sizeof_buf = 0xffff + (MNL_SOCKET_BUFFER_SIZE/2);
