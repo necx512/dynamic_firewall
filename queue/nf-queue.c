@@ -50,6 +50,7 @@ struct  __attribute__((__packed__)) dns_reply_entry
 	unsigned short class;
 	unsigned int ttl;
 	unsigned short length;
+	unsigned char *data;
 };
 
 
@@ -88,18 +89,12 @@ static struct dns_replies *export_dns_replies(struct dnshdr *dnshdr, struct dns_
 		replies->entries[reply_idx].class = *(unsigned short *)(&ptr_reply[4]);
 		replies->entries[reply_idx].ttl = *(unsigned int *)(&ptr_reply[6]);
 		replies->entries[reply_idx].length = *(unsigned short *)(&ptr_reply[10]);
+		replies->entries[reply_idx].data = malloc(replies->entries[reply_idx].length);
+		memcpy(replies->entries[reply_idx].data, &ptr_reply[12], replies->entries[reply_idx].length);
 
-		if(ntohs(replies->entries[reply_idx].type) == 1) // type A
-		{
-			int ip = *(unsigned int *)(&ptr_reply[12]);
-			int ip_a = (ip>>0) & 0xff;
-			int ip_b = (ip>>8) & 0xff;
-			int ip_c = (ip>>16) & 0xff;
-			int ip_d = (ip>>24) & 0xff;
-			printf("%d.%d.%d.%d\n",ip_a, ip_b, ip_c, ip_d);
-		}
 
-		ptr_reply += (sizeof(struct dns_reply_entry) + replies->entries[reply_idx].length);
+
+		ptr_reply += (12/*length of header for one reply*/ + replies->entries[reply_idx].length);
 	}
 	return replies;
 }
@@ -185,9 +180,9 @@ nfq_send_verdict(int queue_num, uint32_t id)
                 exit(EXIT_FAILURE);
         }
 }
-
 static int queue_cb(const struct nlmsghdr *nlh, void *data)
 {
+	static int idxnbr = 0;
         struct nfqnl_msg_packet_hdr *ph = NULL;
         struct nlattr *attr[NFQA_MAX+1] = {};
         uint32_t id = 0, skbinfo;
@@ -234,15 +229,20 @@ static int queue_cb(const struct nlmsghdr *nlh, void *data)
 	if(iph->protocol == 0x11 && udphdr->source == 0x3500) //DNS on UDP
 	{
 		struct dnshdr *dnshdr = (struct dnshdr *)(udphdr+1);
-		int nb_questions = ntohs(dnshdr->que_num);
-		int nb_replies = ntohs(dnshdr->rep_num);
-		printf("#question: %x\n",nb_questions);
-		printf("#reply: %x\n",nb_replies);
 		struct dns_queries *queries = export_dns_queries(dnshdr);
-		printf("%s\n",queries->entries[0].name);
-		printf("Length: %ld\n",queries->length);
-		printf("ok\n");
-		export_dns_replies(dnshdr, queries);
+		struct dns_replies *replies = export_dns_replies(dnshdr, queries);
+		
+
+
+		if(ntohs(replies->entries[0].type) == 1) // type A
+		{
+			int ip = *(unsigned int *)(replies->entries[0].data);
+			int ip_a = (ip>>0) & 0xff;
+			int ip_b = (ip>>8) & 0xff;
+			int ip_c = (ip>>16) & 0xff;
+			int ip_d = (ip>>24) & 0xff;
+			printf("%d : %s : %d.%d.%d.%d\n",++idxnbr, queries->entries[0].name,ip_a, ip_b, ip_c, ip_d);
+		}
 
 		free_dns_queries(queries);
 
@@ -278,8 +278,8 @@ int main(int argc, char *argv[])
 {
 	assert(sizeof(struct dnshdr) == 12);
 	printf("sizeof dnshdr OK\n");
-	assert(sizeof(struct dns_reply_entry) == 12);
-	printf("sizeof dns_reply_entry OK\n");
+	// assert(sizeof(struct dns_reply_entry) == 12);
+	// printf("sizeof dns_reply_entry OK\n");
         char *buf;
         /* largest possible packet payload, plus netlink data overhead: */
         size_t sizeof_buf = 0xffff + (MNL_SOCKET_BUFFER_SIZE/2);
