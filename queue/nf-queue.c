@@ -28,6 +28,7 @@ struct dns_queries
 {
 	struct dns_query_entry *entries;	
 	int nb_queries;
+	unsigned long length;
 };
 struct dns_query_entry
 {
@@ -36,6 +37,21 @@ struct dns_query_entry
 	unsigned short class;
 
 };
+
+struct dns_replies
+{
+	struct dns_reply_entry *entries;	
+	int nb_reply;
+};
+struct  __attribute__((__packed__)) dns_reply_entry
+{
+	unsigned short name;
+	unsigned short type;
+	unsigned short class;
+	unsigned int ttl;
+	unsigned short length;
+};
+
 
 
 
@@ -55,6 +71,38 @@ struct dnshdr { // https://packetstormsecurity.com/files/36299/dnssmurf.c.html
   unsigned short int num_rr;
   unsigned short int num_rrsup;
 };
+
+static struct dns_replies *export_dns_replies(struct dnshdr *dnshdr, struct dns_queries *queries){
+	unsigned char *ptr_reply = (unsigned char *) (dnshdr + 1);
+	ptr_reply += queries->length;
+
+	struct dns_replies *replies = malloc(sizeof(*replies));
+	replies->nb_reply = ntohs(dnshdr->rep_num);
+	replies->entries = malloc( (replies->nb_reply) * sizeof(struct dns_reply_entry));
+
+
+	for(int reply_idx = 0 ; reply_idx < replies->nb_reply ; ++reply_idx){
+
+		replies->entries[reply_idx].name = *(unsigned short *)(&ptr_reply[0]);
+		replies->entries[reply_idx].type = *(unsigned short *)(&ptr_reply[2]);
+		replies->entries[reply_idx].class = *(unsigned short *)(&ptr_reply[4]);
+		replies->entries[reply_idx].ttl = *(unsigned int *)(&ptr_reply[6]);
+		replies->entries[reply_idx].length = *(unsigned short *)(&ptr_reply[10]);
+
+		if(ntohs(replies->entries[reply_idx].type) == 1) // type A
+		{
+			int ip = *(unsigned int *)(&ptr_reply[12]);
+			int ip_a = (ip>>0) & 0xff;
+			int ip_b = (ip>>8) & 0xff;
+			int ip_c = (ip>>16) & 0xff;
+			int ip_d = (ip>>24) & 0xff;
+			printf("%d.%d.%d.%d\n",ip_a, ip_b, ip_c, ip_d);
+		}
+
+		ptr_reply += (sizeof(struct dns_reply_entry) + replies->entries[reply_idx].length);
+	}
+	return replies;
+}
 
 static struct dns_queries *export_dns_queries(struct dnshdr *dnshdr){
 	struct dns_queries *queries = malloc(sizeof(*queries));
@@ -89,6 +137,7 @@ static struct dns_queries *export_dns_queries(struct dnshdr *dnshdr){
 			queries->entries[query_idx].name[name_idx++] = '.';//off by one because of length
 			ptr = ptr + size + 1;
 		}
+		queries->entries[query_idx].name[name_idx-1] = '\0';
 		ptr++;
 
 		// copy the type
@@ -98,6 +147,8 @@ static struct dns_queries *export_dns_queries(struct dnshdr *dnshdr){
 		queries->entries[query_idx].class = *(unsigned short *)ptr;
 		ptr+=2;
 	}
+
+	queries->length = (unsigned long)ptr - (unsigned long)dnshdr - sizeof(*dnshdr);
 
 	return queries;
 }
@@ -189,9 +240,12 @@ static int queue_cb(const struct nlmsghdr *nlh, void *data)
 		printf("#reply: %x\n",nb_replies);
 		struct dns_queries *queries = export_dns_queries(dnshdr);
 		printf("%s\n",queries->entries[0].name);
+		printf("Length: %ld\n",queries->length);
 		printf("ok\n");
+		export_dns_replies(dnshdr, queries);
 
 		free_dns_queries(queries);
+
 
 
 
@@ -224,6 +278,8 @@ int main(int argc, char *argv[])
 {
 	assert(sizeof(struct dnshdr) == 12);
 	printf("sizeof dnshdr OK\n");
+	assert(sizeof(struct dns_reply_entry) == 12);
+	printf("sizeof dns_reply_entry OK\n");
         char *buf;
         /* largest possible packet payload, plus netlink data overhead: */
         size_t sizeof_buf = 0xffff + (MNL_SOCKET_BUFFER_SIZE/2);
