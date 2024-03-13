@@ -226,6 +226,7 @@ static int queue_cb(const struct nlmsghdr *nlh, void *data)
 	//https://github.com/jvehent/nfqueue_recorder/blob/master/nfqueue_recorder.c
 
 	struct udphdr *udphdr = (struct udphdr *)(iph+1);
+	int found = 0;
 	if(iph->protocol == 0x11 && udphdr->source == 0x3500) //DNS on UDP
 	{
 		struct dnshdr *dnshdr = (struct dnshdr *)(udphdr+1);
@@ -233,25 +234,23 @@ static int queue_cb(const struct nlmsghdr *nlh, void *data)
 		struct dns_replies *replies = export_dns_replies(dnshdr, queries);
 		
 
-
-		if(ntohs(replies->entries[0].type) == 1) // type A
-		{
-			int ip = *(unsigned int *)(replies->entries[0].data);
-			int ip_a = (ip>>0) & 0xff;
-			int ip_b = (ip>>8) & 0xff;
-			int ip_c = (ip>>16) & 0xff;
-			int ip_d = (ip>>24) & 0xff;
-			printf("%d : %s : %d.%d.%d.%d\n",++idxnbr, queries->entries[0].name,ip_a, ip_b, ip_c, ip_d);
+		for(int i=0; i < replies->nb_reply ; ++i){
+			if(ntohs(replies->entries[i].type) == 1) // type A
+			{
+				found=1;
+				int ip = *(unsigned int *)(replies->entries[i].data);
+				int ip_a = (ip>>0) & 0xff;
+				int ip_b = (ip>>8) & 0xff;
+				int ip_c = (ip>>16) & 0xff;
+				int ip_d = (ip>>24) & 0xff;
+				printf("%d : %s : %d.%d.%d.%d\n",++idxnbr, queries->entries[0].name,ip_a, ip_b, ip_c, ip_d);
+			}
 		}
 
 		free_dns_queries(queries);
-
-
-
-
-		printf("\n\n");
-
 	}
+	if(found == 1)
+		printf("\n");
 				  
 
 /*	printf("IP DST = %x\n",iph->daddr);
@@ -265,9 +264,9 @@ static int queue_cb(const struct nlmsghdr *nlh, void *data)
          * If these packets are later forwarded/sent out, the checksums will
          * be corrected by kernel/hardware.
          */
-        if (skbinfo & NFQA_SKB_CSUMNOTREADY)
+/*        if (skbinfo & NFQA_SKB_CSUMNOTREADY)
                 printf(", checksum not ready");
-        puts(")");
+        puts(")");*/
 
         nfq_send_verdict(ntohs(nfg->res_id), id);
 
