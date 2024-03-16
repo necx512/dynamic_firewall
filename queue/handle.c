@@ -1,6 +1,13 @@
 #define TRUE 1
 #define FALSE 0
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <time.h>
+#include <string.h>
+#include <assert.h>
+
 struct entry
 {
 	unsigned char *dns_name;
@@ -33,7 +40,7 @@ static void free_entry(struct entry *in){
 			current->in->list_ip = NULL;
 
 			free(current->in);
-			current->in;
+			current->in = NULL;
 
 			//unlink
 			current->prev->next = current->next;
@@ -55,9 +62,9 @@ static struct entry *find_in_cache(unsigned char *dns_name){
 
 	struct link_list *current = link_start;
 	while(current != NULL){
-		assert(curennt->in != NULL);
-		if((curent->in->dns_name,dns_name)==0){
-			return curent->in;
+		assert(current->in != NULL);
+		if(strcmp((char *)current->in->dns_name, (char *)dns_name)==0){
+			return current->in;
 		}
 	}
 	return NULL;
@@ -75,14 +82,14 @@ static struct entry *create_new_entry(unsigned char *dns_name){
 
 	struct entry *in = calloc(1, sizeof(*in));
 
-	int len_str=strlen(dns_name);
+	int len_str=strlen((char *)dns_name);
 	in->dns_name = calloc(len_str+1,1);
-	strncpy(in->dns_name, dns_name);
+	strncpy((char *)in->dns_name, (char *)dns_name,len_str);
 
 	in->list_ip = NULL;
 	in->nb_ip = 0;
-	in_ttl = 0;
-	timestamp = time(NULL);
+	in->ttl = 3600;
+	in->timestamp = time(NULL);
 
 	struct link_list *new_elm = calloc(1,sizeof(*link_start));
 	new_elm->in = in;
@@ -102,6 +109,8 @@ static struct entry *create_new_entry(unsigned char *dns_name){
 	return in;
 }
 
+// --------------------------------------------------------------------------------------------
+
 struct entry *add_entry(unsigned char *dns_name){
 	struct entry *in = find_in_cache(dns_name);
 	if(in != NULL){
@@ -110,7 +119,6 @@ struct entry *add_entry(unsigned char *dns_name){
 
 	return create_new_entry(dns_name);
 }
-// --------------------------------------------------------------------------------------------
 
 void add_ip(struct entry *in, uint32_t ip){
 	if(is_ip_in_list(in, ip) == TRUE){
@@ -122,7 +130,7 @@ void add_ip(struct entry *in, uint32_t ip){
 }
 
 void add_multiple_ip(struct entry *in, uint32_t *ip, int nb_ips){
-	for(int i=0;i;nb_ips;++i){
+	for(int i=0;i<nb_ips;++i){
 		add_ip(in,ip[i]); // This function check if ip exist before adding it
 	}
 }
@@ -141,13 +149,13 @@ static int is_valid(struct entry *in){
 	return FALSE;
 }
 
-int is_ip_allowed() {
-	struct entry *current = link_start;
+int is_ip_allowed(uint32_t ip) {
+	struct link_list *current = link_start;
 	while(current != NULL){
 		for(int i=0 ; i < current->in->nb_ip ; ++i){
 			if(current->in->list_ip[i] == ip){
 				if(is_valid(current->in) == TRUE){
-					return TRUE
+					return TRUE;
 				}
 			}
 		}
