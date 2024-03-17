@@ -22,6 +22,11 @@
 #include <linux/netfilter/nfnetlink_conntrack.h>
 
 #include <assert.h>
+
+#include "cache.h"
+#include "dns_handle.h"
+
+
 static struct mnl_socket *nl;
 
 static void
@@ -52,28 +57,28 @@ nfq_send_verdict(int queue_num, uint32_t id)
 
 void handle_my_ip_packet(struct iphdr *iph){
 	// DNS
+	struct udphdr *udphdr = (struct udphdr *)(iph+1);
 	if(iph->protocol == 0x11 && udphdr->source == 0x3500) //DNS on UDP
 	{
 		int found = 0;
-		struct udphdr *udphdr = (struct udphdr *)(iph+1);
 		struct dnshdr *dnshdr = (struct dnshdr *)(udphdr+1);
 		struct dns_queries *queries = export_dns_queries(dnshdr);
 		struct dns_replies *replies = export_dns_replies(dnshdr, queries);
 
-		struct entry *in = add_entry(queries->entries[0].name);
+		struct entry *in = add_entry((unsigned char *)queries->entries[0].name);
 		
 		
-
-		for(int i=0; i < replies->nb_reply ; ++i){
+		for(int i=0; i < replies->nb_replies ; ++i){
 			if(ntohs(replies->entries[i].type) == 1) // type A
 			{
 				found=1;
 				uint32_t ip = *(uint32_t *)(replies->entries[i].data);
-				add_ip(ip);
+				add_ip(in, ip);
 			}
 		}
 
-		free_dns_queries(queries);
+		free_dns_queries(&queries);
+		free_dns_replies(&replies);
 		if(found == 1)
 			printf("\n");
 	} else {
@@ -82,7 +87,6 @@ void handle_my_ip_packet(struct iphdr *iph){
 
 static int queue_cb(const struct nlmsghdr *nlh, void *data)
 {
-	static int idxnbr = 0;
         struct nfqnl_msg_packet_hdr *ph = NULL;
         struct nlattr *attr[NFQA_MAX+1] = {};
         uint32_t id = 0, skbinfo;
@@ -145,7 +149,6 @@ static int queue_cb(const struct nlmsghdr *nlh, void *data)
 /*        if (skbinfo & NFQA_SKB_CSUMNOTREADY)
                 printf(", checksum not ready");
         puts(")");*/
-
         nfq_send_verdict(ntohs(nfg->res_id), id);
 
         return MNL_CB_OK;
