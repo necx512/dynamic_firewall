@@ -1,3 +1,10 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <assert.h>
+#include <string.h>
+#include <arpa/inet.h>
+
 struct dns_queries
 {
 	struct dns_query_entry *entries;	
@@ -15,7 +22,7 @@ struct dns_query_entry
 struct dns_replies
 {
 	struct dns_reply_entry *entries;	
-	int nb_reply;
+	int nb_replies;
 };
 struct  __attribute__((__packed__)) dns_reply_entry
 {
@@ -43,16 +50,16 @@ struct dnshdr { // https://packetstormsecurity.com/files/36299/dnssmurf.c.html
   unsigned short int num_rrsup;
 };
 
-static struct dns_replies *export_dns_replies(struct dnshdr *dnshdr, struct dns_queries *queries){
+struct dns_replies *export_dns_replies(struct dnshdr *dnshdr, struct dns_queries *queries){
 	unsigned char *ptr_reply = (unsigned char *) (dnshdr + 1);
 	ptr_reply += queries->length;
 
 	struct dns_replies *replies = malloc(sizeof(*replies));
-	replies->nb_reply = ntohs(dnshdr->rep_num);
-	replies->entries = malloc( (replies->nb_reply) * sizeof(struct dns_reply_entry));
+	replies->nb_replies = ntohs(dnshdr->rep_num);
+	replies->entries = malloc( (replies->nb_replies) * sizeof(struct dns_reply_entry));
 
 
-	for(int reply_idx = 0 ; reply_idx < replies->nb_reply ; ++reply_idx){
+	for(int reply_idx = 0 ; reply_idx < replies->nb_replies ; ++reply_idx){
 
 		replies->entries[reply_idx].name = *(unsigned short *)(&ptr_reply[0]);
 		replies->entries[reply_idx].type = *(unsigned short *)(&ptr_reply[2]);
@@ -69,7 +76,7 @@ static struct dns_replies *export_dns_replies(struct dnshdr *dnshdr, struct dns_
 	return replies;
 }
 
-static struct dns_queries *export_dns_queries(struct dnshdr *dnshdr){
+struct dns_queries *export_dns_queries(struct dnshdr *dnshdr){
 	struct dns_queries *queries = malloc(sizeof(*queries));
 	queries->nb_queries = ntohs(dnshdr->que_num);
 	queries->entries = malloc( (queries->nb_queries) * sizeof(struct dns_query_entry));
@@ -118,9 +125,34 @@ static struct dns_queries *export_dns_queries(struct dnshdr *dnshdr){
 	return queries;
 }
 
-void free_dns_queries(struct dns_queries *queries){
+void free_dns_queries(struct dns_queries **queries_top){
+	struct dns_queries *queries = *queries_top;
 	for(int query_idx = 0 ; query_idx < queries->nb_queries ; ++query_idx){
 		free(queries->entries[query_idx].name);
+		queries->entries[query_idx].name = NULL;
 	}
-	free(queries);
+	free(queries->entries);
+	queries->entries = NULL;
+
+	free(*queries_top);
+	*queries_top = NULL;
+
+
+}
+
+void free_dns_replies(struct dns_replies **replies_top){
+	struct dns_replies *replies = *replies_top;
+	for(int reply_idx = 0 ; reply_idx < replies->nb_replies ; ++reply_idx){
+		free(replies->entries[reply_idx].data);
+		replies->entries[reply_idx].data = NULL;
+	}
+	free(replies->entries);
+	replies->entries = NULL;
+
+	free(*replies_top);
+	*replies_top = NULL;
+
+
+
+
 }
