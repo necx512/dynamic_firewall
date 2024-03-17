@@ -164,6 +164,10 @@ static int queue_cb(const struct nlmsghdr *nlh, void *data)
 
 int main(int argc, char *argv[])
 {
+	FILE *log_file = fopen("/tmp/log","w");
+	set_log_file(log_file);
+
+
 	assert(sizeof(struct dnshdr) == 12);
 	printf("sizeof dnshdr OK\n");
 	// assert(sizeof(struct dns_reply_entry) == 12);

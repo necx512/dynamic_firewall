@@ -21,4 +21,5 @@ struct entry *add_entry(unsigned char *dns_name);
 void add_ip(struct entry *in, uint32_t ip);
 void set_ttl(struct entry *in, uint32_t ttl);
 int is_ip_allowed(uint32_t ip);
+void set_log_file(FILE *file);
 #endif

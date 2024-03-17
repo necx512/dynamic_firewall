@@ -14,9 +14,15 @@
 
 static struct link_list *link_start= NULL;
 static int nb_entries = 0;
+static FILE *log_file = NULL;
+
 
 static void free_entry(struct entry *in){
-	printf("Free entry %d\n",nb_entries);
+	printf("\e[92m Free entry %s\e[0m\n",in->dns_name);
+	if(log_file != NULL){
+		fprintf(log_file,"\e[92m Free entry %s\e[0m\n",in->dns_name);
+		fflush(log_file);
+	}
 	struct link_list *current = link_start;
 	while(current != NULL) {
 		if(current->in == in) {
@@ -124,10 +130,16 @@ static int is_valid(struct entry *in){
 struct entry *add_entry(unsigned char *dns_name){
 	struct entry *in = find_in_cache(dns_name);
 	if(in != NULL){
-		printf("Exist Entry for domain %s\n",dns_name);
+		//printf("Exist Entry for domain %s\n",dns_name);
 		return in;
 	}
-	printf("Add Entry for domain %s\n",dns_name);
+	printf("\e[91mAdd Entry for domain %s. NbEntry before adding: %d\e[0m\n",dns_name,nb_entries);
+	if(log_file != NULL)
+	{
+		printf("LOGGED\n");
+		fprintf(log_file,"\e[91mAdd Entry for domain %s. NbEntry before adding: %d\e[0m\n",dns_name,nb_entries);
+		fflush(log_file);
+	}
 	return create_new_entry(dns_name);
 }
 
@@ -160,7 +172,6 @@ void set_ttl(struct entry *in, uint32_t ttl){
 int is_ip_allowed(uint32_t ip) {
 	char ip_str[256];
 	convert_b32_to_str(ip_str, ip);
-	printf("is_ip_allowed for IP %s\n",ip_str);
 	
 	struct link_list *current = link_start;
 
@@ -169,13 +180,17 @@ int is_ip_allowed(uint32_t ip) {
 		for(int i=0 ; i < current->in->nb_ip ; ++i){
 			if(current->in->list_ip[i] == ip){
 				if(is_valid(current->in) == TRUE){
-					printf("----->Connection %s %s allowed\n", current->in->dns_name, ip_str); 
+					printf("IP %s [%s]  ACCEPTED\n",ip_str, current->in->dns_name);
 					return TRUE;
 				}
 			}
 		}
 		current = current->next;
 	}
-	printf("REJECT\n");
+	printf("IP %s REJECT\n",ip_str);
 	return FALSE; // We didn't find the IP OR the IP is out of delay
+}
+
+void set_log_file(FILE *file){
+	log_file = file;
 }
