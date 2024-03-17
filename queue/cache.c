@@ -8,22 +8,7 @@
 #include <string.h>
 #include <assert.h>
 
-struct entry
-{
-	unsigned char *dns_name;
-	uint32_t *list_ip;
-	uint32_t nb_ip;//TODO : definir un max
-	time_t timestamp; 
-	uint32_t ttl;
-};
-
-struct link_list
-{
-	struct link_list *next;
-	struct link_list *prev;
-	struct entry *in;
-};
-
+#include "cache.h"
 
 static struct link_list *link_start= NULL;
 static int nb_entries = 0;
@@ -108,6 +93,14 @@ static struct entry *create_new_entry(unsigned char *dns_name){
 
 	return in;
 }
+static int is_valid(struct entry *in){
+	time_t timestamp_diff = time(NULL) - in->timestamp;
+	if(timestamp_diff <= in->ttl){
+		free_entry(in);
+		return TRUE;
+	}
+	return FALSE;
+}
 
 // --------------------------------------------------------------------------------------------
 
@@ -129,24 +122,14 @@ void add_ip(struct entry *in, uint32_t ip){
 	in->list_ip[in->nb_ip - 1] = ip;
 }
 
-void add_multiple_ip(struct entry *in, uint32_t *ip, int nb_ips){
+/*void add_multiple_ip(struct entry *in, uint32_t *ip, int nb_ips){
 	for(int i=0;i<nb_ips;++i){
 		add_ip(in,ip[i]); // This function check if ip exist before adding it
 	}
-}
+}*/
 
 void set_ttl(struct entry *in, uint32_t ttl){
 	in->ttl = ttl;
-}
-
-
-static int is_valid(struct entry *in){
-	time_t timestamp_diff = time(NULL) - in->timestamp;
-	if(timestamp_diff <= in->ttl){
-		free_entry(in);
-		return TRUE;
-	}
-	return FALSE;
 }
 
 int is_ip_allowed(uint32_t ip) {
