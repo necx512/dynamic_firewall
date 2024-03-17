@@ -16,6 +16,7 @@ static struct link_list *link_start= NULL;
 static int nb_entries = 0;
 
 static void free_entry(struct entry *in){
+	printf("Free entry %d\n",nb_entries);
 	struct link_list *current = link_start;
 	while(current != NULL) {
 		if(current->in == in) {
@@ -30,8 +31,12 @@ static void free_entry(struct entry *in){
 			current->in = NULL;
 
 			//unlink
-			current->prev->next = current->next;
-			current->next->prev = current->prev;
+			if(current->prev != NULL)
+				current->prev->next = current->next;
+
+
+			if(current->next != NULL)
+				current->next->prev = current->prev;
 
 			nb_entries--;
 			if(nb_entries == 0){
@@ -105,12 +110,13 @@ static struct entry *create_new_entry(unsigned char *dns_name){
 	return in;
 }
 static int is_valid(struct entry *in){
-	time_t timestamp_diff = time(NULL) - in->timestamp;
-	if(timestamp_diff <= in->ttl){
+	time_t timestamp_current = time(NULL);
+	time_t timestamp_diff = timestamp_current - in->timestamp;
+	if(timestamp_diff > in->ttl){
 		free_entry(in);
-		return TRUE;
+		return FALSE;
 	}
-	return FALSE;
+	return TRUE;
 }
 
 // --------------------------------------------------------------------------------------------
@@ -118,8 +124,10 @@ static int is_valid(struct entry *in){
 struct entry *add_entry(unsigned char *dns_name){
 	struct entry *in = find_in_cache(dns_name);
 	if(in != NULL){
+		printf("Exist Entry for domain %s\n",dns_name);
 		return in;
 	}
+	printf("Add Entry for domain %s\n",dns_name);
 	return create_new_entry(dns_name);
 }
 
@@ -150,16 +158,24 @@ void set_ttl(struct entry *in, uint32_t ttl){
 }
 
 int is_ip_allowed(uint32_t ip) {
+	char ip_str[256];
+	convert_b32_to_str(ip_str, ip);
+	printf("is_ip_allowed for IP %s\n",ip_str);
+	
 	struct link_list *current = link_start;
+
 	while(current != NULL){
+		assert(current->in != NULL);
 		for(int i=0 ; i < current->in->nb_ip ; ++i){
 			if(current->in->list_ip[i] == ip){
 				if(is_valid(current->in) == TRUE){
+					printf("----->Connection %s %s allowed\n", current->in->dns_name, ip_str); 
 					return TRUE;
 				}
 			}
 		}
 		current = current->next;
 	}
+	printf("REJECT\n");
 	return FALSE; // We didn't find the IP OR the IP is out of delay
 }

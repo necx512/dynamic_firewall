@@ -1,3 +1,6 @@
+iptables -A INPUT -p udp --sport 53 -j QUEUE
+iptables -A OUTPUT -p tcp -j QUEUE
+
 sudo pacman -S libnetfilter_queue 
 https://www.netfilter.org/projects/libnetfilter_queue/doxygen/html/
 // https://home.regit.org/netfilter-en/using-nfqueue-and-libnetfilter_queue/

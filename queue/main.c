@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
+#include <linux/tcp.h>
 
 #include <libmnl/libmnl.h>
 #include <linux/netfilter.h>
@@ -58,6 +59,7 @@ nfq_send_verdict(int queue_num, uint32_t id)
 void handle_my_ip_packet(struct iphdr *iph){
 	// DNS
 	struct udphdr *udphdr = (struct udphdr *)(iph+1);
+	struct tcphdr *tcphdr = (struct tcphdr *)(iph+1);
 	if(iph->protocol == 0x11 && udphdr->source == 0x3500) //DNS on UDP
 	{
 		int found = 0;
@@ -65,7 +67,7 @@ void handle_my_ip_packet(struct iphdr *iph){
 		struct dns_queries *queries = export_dns_queries(dnshdr);
 		struct dns_replies *replies = export_dns_replies(dnshdr, queries);
 
-		struct entry *in = add_entry((unsigned char *)queries->entries[0].name);
+		struct entry *in = NULL;
 		
 		
 		for(int i=0; i < replies->nb_replies ; ++i){
@@ -73,6 +75,8 @@ void handle_my_ip_packet(struct iphdr *iph){
 			{
 				found=1;
 				uint32_t ip = *(uint32_t *)(replies->entries[i].data);
+				if(in == NULL)
+					in = add_entry((unsigned char *)queries->entries[0].name);
 				add_ip(in, ip);
 			}
 		}
@@ -82,6 +86,10 @@ void handle_my_ip_packet(struct iphdr *iph){
 		if(found == 1)
 			printf("\n");
 	} else {
+		if(tcphdr->syn == 1){
+			is_ip_allowed(iph->daddr);
+		}
+		//iph->dest
 	}
 }
 
@@ -120,8 +128,8 @@ static int queue_cb(const struct nlmsghdr *nlh, void *data)
                         printf("truncated ");
         }
 
-        if (skbinfo & NFQA_SKB_GSO)
-                printf("GSO ");
+/*        if (skbinfo & NFQA_SKB_GSO)
+                printf("GSO ");*/
 
         id = ntohl(ph->packet_id);
 
