@@ -12,49 +12,90 @@
 #include <arpa/inet.h>
 #include "cache.h"
 
-static struct link_list *link_start= NULL;
+static struct link_list *link_start=NULL;
 static int nb_entries = 0;
 static FILE *log_file = NULL;
 
+static struct link_list *split_dns( char *complete_name){
+	struct link_list *base = NULL;
+	struct link_list *last = NULL;
 
-static void free_entry(struct entry *in){
-	printf("\e[92m Free entry %s\e[0m\n",in->dns_name);
-	if(log_file != NULL){
-		fprintf(log_file,"\e[92m Free entry %s\e[0m\n",in->dns_name);
-		fflush(log_file);
-	}
-	struct link_list *current = link_start;
-	while(current != NULL) {
-		if(current->in == in) {
+        int max_size = strlen(complete_name);
 
-			free(current->in->dns_name);
-			current->in->dns_name = NULL;
+        char *tmp = calloc(max_size,sizeof(*tmp));
+        int idx_tmp = max_size-1;
 
-			free(current->in->list_ip);
-			current->in->list_ip = NULL;
+        for(int i=max_size-1;i>=-1;--i){
+                if(complete_name[i] == '.'  || i == -1){
+                        int len_name = max_size-1 - idx_tmp;
+                        printf("%d\n",len_name);
+                        char *subdns_name = calloc(len_name+1,sizeof(*subdns_name));
+                        memcpy(subdns_name,&tmp[idx_tmp+1],len_name);
+			assert(strlen(subdns_name) == len_name);
+                        printf("+%s+\n",subdns_name);
 
-			free(current->in);
-			current->in = NULL;
+			/**/ 
+			struct link_list *elm = calloc(1,sizeof(*elm));
+			elm->next = NULL;
+			elm->prev = NULL;
+			elm->parent = last;
+			elm->childs = NULL;
+			elm->list_ip = NULL;
+			elm->nb_ip = 0;
+			elm->dns_name = subdns_name;
+			elm->timestamp = time(NULL);
+			elm->ttl = 3600;
+			/**/
 
-			//unlink
-			if(current->prev != NULL)
-				current->prev->next = current->next;
 
+			if(base == NULL)
+				base = elm;
 
-			if(current->next != NULL)
-				current->next->prev = current->prev;
-
-			nb_entries--;
-			if(nb_entries == 0){
-				free(link_start);
-				link_start = NULL;
+			if(last != NULL){
+				last->childs = elm; 
 			}
 
-			break;
-		}
+			last = elm;
+
+                        idx_tmp = max_size-1;
+                } else {
+                        printf("%p %c\n",&tmp[idx_tmp], complete_name[i]);
+                        tmp[idx_tmp] = complete_name[i];
+                        idx_tmp--;
+                }
+        }
+	return base;
+}
+
+void free_subdns(struct link_list *entry){
+	if(entry == NULL)
+		return;
+
+	if(entry->prev == NULL && entry->next == NULL){
+		if(entry->parent != NULL)
+			entry->parent->childs = NULL;
+	} else {
+		if(entry->prev != NULL)
+			entry->prev->next = entry->next;
+		if(entry->next != NULL)
+			entry->next->prev = entry->prev;
 	}
 
+	free_subdns(current->next);
+	current->next = NULL;
+
+	free_subdns(current->prev);
+	current->prev = NULL;
+
+	free_subdns(current->child);
+	current->child = NULL;
+
+	free(current->dns_name);
+	current->dns_name = NULL;
+
+	free(entry);
 }
+
 
 static void convert_b32_to_str(char strret[256], uint32_t nbr){
 	int nbr_a = (nbr>>0)&0xff;
@@ -65,18 +106,43 @@ static void convert_b32_to_str(char strret[256], uint32_t nbr){
 	sprintf(strret,"%d.%d.%d.%d",nbr_a,nbr_b,nbr_c,nbr_d);
 }
 
-static struct entry *find_in_cache(unsigned char *dns_name){
+static int find_in_cache(struct link_list *base, struct link_list **last_found, struct link_list **ret_base){
+
+	struct link_list *item = base;
 	struct link_list *current = link_start;
-	while(current != NULL){
-		assert(current->in != NULL);
-		if(strcmp((char *)current->in->dns_name, (char *)dns_name)==0){
-			return current->in;
+
+	*last_found = NULL;
+	*ret_base = NULL;
+
+	while(item != NULL && current != NULL){
+		while(current != NULL){
+			if(strcmp((char *)current->dns_name, (char *)item->dns_name)==0){
+				*last_found = current;
+				*ret_base = item;
+				break;
+			}
+			current=current->next;
 		}
-		current=current->next;
+		if(current != NULL) // we found it
+		{
+			item = item->child; // item != NULL because this is the loop condition and item does not change in the inner loop
+			current = current->child;
+		}
+		// else the loop will stop
 	}
-	return NULL;
+
+	if(item == NULL && current != NULL){
+		return 1;
+	}
+	if(item != NULL && current == NULL){
+		return 2;
+	}
+	if(item == NULL && current == NULL){
+		return 0;
+	}
 }
-static int is_ip_in_list(struct entry *in, uint32_t ip){
+
+static int is_ip_in_list(struct link_list *in, uint32_t ip){
 	for(int i=0; i<in->nb_ip;++i){
 		if(in->list_ip[i] == ip)
 			return TRUE;
@@ -85,33 +151,23 @@ static int is_ip_in_list(struct entry *in, uint32_t ip){
 }
 
 
-static struct entry *create_new_entry(unsigned char *dns_name){
+static struct link_list *create_new_entry(unsigned char *dns_name){
 
-	struct entry *in = calloc(1, sizeof(*in));
+	struct link_list *base = split_dns(dns_name);
+	struct link_list *ret_base = NULL;
 
-	int len_str=strlen((char *)dns_name);
-	in->dns_name = calloc(len_str+1,1);
-	strncpy((char *)in->dns_name, (char *)dns_name,len_str);
+	struct link_list *elm = find_in_cache(base,&ret_base);
+	if(elm != NULL)
+		assert(ret_base != NULL);
 
-	in->list_ip = NULL;
-	in->nb_ip = 0;
-	in->ttl = 3600;
-	in->timestamp = time(NULL);
+	if(found)
+		free_subdns(base);
+		return
+	else
+		add_child(elm, ret_base->childs);
 
-	struct link_list *new_elm = calloc(1,sizeof(*link_start));
-	new_elm->in = in;
-	new_elm->prev = NULL;
 
-	if(link_start == NULL){
-		link_start = new_elm;
-		link_start->next = NULL; //=>new_elm->next=NULL
-	}
-	else{
-		new_elm->next = link_start;
-		link_start->prev = new_elm;
-		link_start = new_elm;
-	}
-	nb_entries++;
+	struct link_list *find_in_cache(unsigned char *dns_name);
 
 	return in;
 }

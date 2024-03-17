@@ -1,20 +1,17 @@
 #ifndef _CACHE_UGTBHNDHK_H
 #define _CACHE_UGTBHNDHK_H
 
-struct entry
-{
-	unsigned char *dns_name;
-	uint32_t *list_ip;
-	uint32_t nb_ip;//TODO : definir un max
-	time_t timestamp; 
-	uint32_t ttl;
-};
-
 struct link_list
 {
 	struct link_list *next;
 	struct link_list *prev;
-	struct entry *in;
+	struct link_list *parent;
+	struct link_list *childs;
+	uint32_t *list_ip;
+	uint32_t nb_ip;//TODO : definir un max
+	unsigned char *dns_name;
+	time_t timestamp; 
+	uint32_t ttl;
 };
 
 struct entry *add_entry(unsigned char *dns_name);
