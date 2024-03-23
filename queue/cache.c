@@ -97,13 +97,16 @@ static int find_child(struct link_list *parent, char *dns_part){
 	return i;
 }
 
-static int find_in_cache(char **splitted_dns_name, int nb_parts, struct link_list *founds/* should be allocated*/){
+static int find_in_cache(char **splitted_dns_name, int nb_parts, struct link_list **founds/* should be allocated*/, int only_last_found){
 	struct link_list *parent = NULL;
 	int i;
 	for(i=nb_parts-1; i>=0;--i){
 		int idx = find_child(parent, splitted_dns_name[i]);
 		if(idx < parent->nb_valid_childs){
-			founds[nb_parts - i - 1] = parent->childs[i];
+			if(only_last_found == 1)
+				*founds = &parent->childs[i]
+			else
+				founds[nb_parts - i - 1] = &parent->childs[i];
 			parent = &parent->childs[i];
 		} else {
 			break;
@@ -138,7 +141,7 @@ static void remove_child(struct link_list *parent, int idx){
 	parent->nb_valid_childs--;
 }
 
-static void add_child(struct link_list *parent, char *dns_part){
+static link_list *add_child(struct link_list *parent, char *dns_part){
 	if(parent != NULL)
 	{
 		if(root == NULL){
@@ -156,9 +159,21 @@ static void add_child(struct link_list *parent, char *dns_part){
 	parent->childs[parent->nb_valid_childs - 1].parent = parent;
 	parent->childs[parent->nb_valid_childs - 1].list_ip = NULL;
 	parent->childs[parent->nb_valid_childs - 1].nb_ip = 0;
-	parent->childs[parent->nb_valid_childs - 1].dns_name_part = dns_part;
 	parent->childs[parent->nb_valid_childs - 1].timestamp = time(NULL);
 	parent->childs[parent->nb_valid_childs - 1].ttl = 3600;
+	
+	int len_dns_part = strlen(dns_part);
+	parent->childs[parent->nb_valid_childs - 1].dns_name_part = calloc(len_dns_part+1,sizeof(char));
+	strncpy(parent->childs[parent->nb_valid_childs - 1].dns_name_part, dns_part, len_dns_part);
+
+	//control
+	for(int j=0;j<len_dns_part;++j){
+		assert(parent->childs[parent->nb_valid_childs - 1].dns_name_part[j] == dns_part[j]);
+	}
+	assert(parent->childs[parent->nb_valid_childs - 1].dns_name_part[len_dns_part] == '\0');
+
+	return &parent->childs[parent->nb_valid_childs - 1];
+
 }
 
 static int is_ip_in_list(struct link_list *in, uint32_t ip){
@@ -182,23 +197,35 @@ static int is_valid(struct entry *in){
 
 // --------------------------------------------------------------------------------------------
 
-struct entry *add_entry(unsigned char *dns_name){
-	struct entry *in = find_in_cache(dns_name);
-	if(in != NULL){
-		//printf("Exist Entry for domain %s\n",dns_name);
-		return in;
+struct link_list *add_entry(unsigned char *dns_name){
+
+	int nb_parts = 0;
+	char **splitted_dns_name = split_dns(dns_name, &nb_parts);
+
+
+	struct link_list **founds = calloc(nb_parts, sizeof(*found));
+	struct link_list *last_found = NULL;
+
+	int nb_found = find_in_cache(splitted_dns_name, nb_parts, founds,0);
+	last_found = founds[nb_found-1];
+
+	if(nb_found == nb_parts){
+		return last_found;
+	} else {
+		for(int i=nb_parts;i<nb_found;++i){
+			last_found = add_child(last_found,splitted_dns_name[i]);
+			assert(last_found != NULL || i == nb_found - 1);
+		}
 	}
-	printf("\e[91mAdd Entry for domain %s. NbEntry before adding: %d\e[0m\n",dns_name,nb_entries);
-	if(log_file != NULL)
-	{
-		printf("LOGGED\n");
-		fprintf(log_file,"\e[91mAdd Entry for domain %s. NbEntry before adding: %d\e[0m\n",dns_name,nb_entries);
-		fflush(log_file);
-	}
-	return create_new_entry(dns_name);
+
+	free(founds);
+	free_splitted_dns(splitted_dns_name,nb_parts);
+	splitted_dns_name = NULL;
+	nb_parts = 0;
+
 }
 
-void add_ip(struct entry *in, uint32_t ip){
+void add_ip(struct link_list *in, uint32_t ip){
 	char ip_str[256];
 	convert_b32_to_str(ip_str, ip);
 
