@@ -13,13 +13,17 @@
 #include "cache.h"
 
 static struct link_list *root = NULL;
+static FILE *log_file = NULL;
 
 static init_root(void){
-	root = calloc(1,sizeof(*root));
+	root = calloc(1,sizeof(*root)); // This will never be freed except at the end of the program.
+
 	root->parent = NULL;
+
 	root->childs = NULL;
 	root->nb_valid_childs = 0;
 	root->nb_childs = 0;
+
 	root->list_ip = NULL;
 	root->nb_ip = 0;
 	root->dns_name_part = NULL;
@@ -27,8 +31,6 @@ static init_root(void){
 	root-ttl = 0;
 }
 
-static int nb_entries = 0;
-static FILE *log_file = NULL;
 
 static void convert_b32_to_str(char strret[256], uint32_t nbr){
 	int nbr_a = (nbr>>0)&0xff;
@@ -42,7 +44,7 @@ static void convert_b32_to_str(char strret[256], uint32_t nbr){
 
 static char **split_dns(char *dns_name, int *nb_parts){
 	int len_name = strlen(dns_name);
-	char *tmp = calloc(len_name+1,sizeof(*tmp));
+	char *tmp = calloc(len_name+1,sizeof(*tmp)); // Free at the end on the function
 	char **parts = NULL;
 	int len_part=0;
 
@@ -51,8 +53,8 @@ static char **split_dns(char *dns_name, int *nb_parts){
 
 	for(int i=0;i<len_name+1;++i){
 		if(i == len_name || dns_name[i] == '.') {
-			parts = realloc(*parts,(*nb_parts + 1)*sizeof(parts));
-			parts[*nb_parts] = calloc(len_part+1, sizeof(*parts[*nb_parts]));
+			parts = realloc(*parts,(*nb_parts + 1)*sizeof(parts)); // to be freed -> free_splitted_dns()
+			parts[*nb_parts] = calloc(len_part+1, sizeof(*parts[*nb_parts])); // to be freed -> free_splitted_dns
 			strncpy(parts[*nb_parts], tmp, len_part);
 
 			//control
@@ -80,9 +82,9 @@ void free_splitted_dns(char **parts, int nb_parts){
 	}
 	free(parts);
 }
-
-static int find_child(struct link_list *parent, char *dns_part){
-	if(parent != NULL)
+// OK
+static int find_child_by_dns_part(struct link_list *parent, char *dns_part){
+	if(parent == NULL)
 	{
 		if(root == NULL){
 			init_root();
@@ -94,14 +96,24 @@ static int find_child(struct link_list *parent, char *dns_part){
 			break;
 		}
 	}
-	return i;
+	return i;// if i == parent->nb_valid_childs => not found
+}
+
+static int find_child_by_ref(struct link_list *child){
+	struct link_list *parent = child->parent;
+	for(i=0; i < parent->nb_valid_childs ; ++i){
+		if(&parent->childs[i] == child){
+			break;
+		}
+	}
+	return i;// if i == parent->nb_valid_childs => not found
 }
 
 static int find_in_cache(char **splitted_dns_name, int nb_parts, struct link_list **founds/* should be allocated*/, int only_last_found){
 	struct link_list *parent = NULL;
 	int i;
 	for(i=nb_parts-1; i>=0;--i){
-		int idx = find_child(parent, splitted_dns_name[i]);
+		int idx = find_child_by_dns_part(parent, splitted_dns_name[i]);
 		if(idx < parent->nb_valid_childs){
 			if(only_last_found == 1)
 				*founds = &parent->childs[i]
@@ -112,13 +124,16 @@ static int find_in_cache(char **splitted_dns_name, int nb_parts, struct link_lis
 			break;
 		}
 	}
-	return nb_parts - (i+1);;
+	return nb_parts - i - 1; // If we find all, then i==-1. Thus, we return nb_part-i-1 = nb_part - (-1)-1 = nb_part + 1 - 1 = nbpart
+				 // If we dont find it, i=nb_part-1. Thus we return nb_part-i-1 = nb_part-(nb_part-1)-1=nb_part-nb_part+1-1 = 0
+				 // If we only find one, i = nb_part-2. Thus we return nb_part - i - 1 = nb_part - (nb_part - 2) - 1 =nb_part - nb_part + 2 - 1 = 1
 }
 
 
 
 static void remove_child(struct link_list *parent, int idx){
-	if(parent != NULL)
+
+	if(parent == NULL)
 	{
 		if(root == NULL){
 			init_root();
@@ -137,12 +152,18 @@ static void remove_child(struct link_list *parent, int idx){
 		parent->childs[idx].nb_ip = 0;
 		parent->childs[idx].list_ip = NULL;
 	}
+	
+	for(int i=0;i<parent->childs[idx]->nb_childs;++i){
+		remove_child(&parent->childs[idx], i);
+	}
+	parent->childs[idx]->childs = NULL;
+
 	parent->childs[idx] = parent->childs[nb_valid_elm - 1];
 	parent->nb_valid_childs--;
-}
 
+}
 static link_list *add_child(struct link_list *parent, char *dns_part){
-	if(parent != NULL)
+	if(parent == NULL)
 	{
 		if(root == NULL){
 			init_root();
@@ -151,7 +172,7 @@ static link_list *add_child(struct link_list *parent, char *dns_part){
 	}
 
 	if(parent->nb_valid_childs == parent->nb_childs){
-		parent->childs = realloc(parent->childs,(parent->nb_childs+1)*sizeof(*(parent->childs)));
+		parent->childs = realloc(parent->childs,(parent->nb_childs+1)*sizeof(*(parent->childs)));//never free exept at the end of the program. TODO: limit of the size
 		parent->nb_childs = 1 + parent->nb_childs;
 	}
 	parent->nb_valid_childs = parent->nb_valid_childs + 1
@@ -163,7 +184,7 @@ static link_list *add_child(struct link_list *parent, char *dns_part){
 	parent->childs[parent->nb_valid_childs - 1].ttl = 3600;
 	
 	int len_dns_part = strlen(dns_part);
-	parent->childs[parent->nb_valid_childs - 1].dns_name_part = calloc(len_dns_part+1,sizeof(char));
+	parent->childs[parent->nb_valid_childs - 1].dns_name_part = calloc(len_dns_part+1,sizeof(char)); // freed with remove_child()
 	strncpy(parent->childs[parent->nb_valid_childs - 1].dns_name_part, dns_part, len_dns_part);
 
 	//control
@@ -181,15 +202,16 @@ static int is_ip_in_list(struct link_list *in, uint32_t ip){
 		if(in->list_ip[i] == ip)
 			return TRUE;
 	}
-	return 0;
+	return FALSE;
 }
 
-
-static int is_valid(struct entry *in){
+// OK here
+static int is_valid(struct link_list *in){
 	time_t timestamp_current = time(NULL);
 	time_t timestamp_diff = timestamp_current - in->timestamp;
 	if(timestamp_diff > in->ttl){
-		free_entry(in);
+		int idx = find_child_by_ref(in);
+		remove_child(in->parent,idx);
 		return FALSE;
 	}
 	return TRUE;
@@ -200,7 +222,7 @@ static int is_valid(struct entry *in){
 struct link_list *add_entry(unsigned char *dns_name){
 
 	int nb_parts = 0;
-	char **splitted_dns_name = split_dns(dns_name, &nb_parts);
+	char **splitted_dns_name = split_dns(dns_name, &nb_parts); // freeed in the end of this function
 
 
 	struct link_list **founds = calloc(nb_parts, sizeof(*found));
@@ -247,7 +269,7 @@ void add_ip(struct link_list *in, uint32_t ip){
 	}
 }*/
 
-void set_ttl(struct entry *in, uint32_t ttl){
+void set_ttl(struct link_list  *in, uint32_t ttl){
 	in->ttl = ttl;
 }
 
