@@ -3,13 +3,16 @@
 
 struct link_list
 {
-	struct link_list *next;
-	struct link_list *prev;
 	struct link_list *parent;
+
 	struct link_list *childs;
+	int nb_valid_childs;
+	int nb_childs;
+
+
 	uint32_t *list_ip;
 	uint32_t nb_ip;//TODO : definir un max
-	unsigned char *dns_name;
+	unsigned char *dns_name_part;
 	time_t timestamp; 
 	uint32_t ttl;
 };
