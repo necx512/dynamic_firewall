@@ -4,6 +4,7 @@
 struct link_list
 {
 	struct link_list *parent;
+	int child_idx;
 
 	struct link_list **childs;
 	int nb_valid_childs;

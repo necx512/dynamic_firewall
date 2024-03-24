@@ -133,36 +133,33 @@ static int find_in_cache(char **splitted_dns_name, int nb_parts, struct link_lis
 
 
 
-static void remove_child(struct link_list *parent, int idx){
+static void remove_child(struct link_list *elm){
 
-	if(parent == NULL)
-	{
-		if(root == NULL){
-			init_root();
-		}
-		parent = root;
+	if(elm->dns_name_part != NULL){
+		free(elm->dns_name_part);
+		elm->dns_name_part = NULL;
 	}
-	assert(idx < parent->nb_valid_childs);
-
-	if(parent->childs[idx].dns_name_part != NULL)
-	{
-		free(parent->childs[idx].dns_name_part);
-		parent->childs[idx].dns_name_part = NULL;
-	}
-	if(parent->childs[idx].list_ip != NULL){
-		free(parent->childs[idx].list_ip);
-		parent->childs[idx].nb_ip = 0;
-		parent->childs[idx].list_ip = NULL;
-	}
-	
-	for(int i=0;i<parent->childs[idx]->nb_childs;++i){
-		remove_child(parent->childs[idx], i);
-		free(parent->childs[idx]);
-		parent->childs[idx] = NULL;
+	if(elm->list_ip != NULL) {
+		free(elm->list_ip);
+		elm->list_ip = NULL;
 	}
 
-	parent->childs[idx] = parent->childs[parent->nb_valid_childs - 1];
-	parent->nb_valid_childs--;
+	//free childs
+	for(int i=0;i<elm->nb_valid_childs;++i){
+		remove_child(elm->childs[i]);
+		free(elm->childs[i]);
+	}
+
+
+	//detach from parent
+	struct link_list *parent = elm->parent;
+	if(parent != NULL){
+		assert(parent->childs[elm->child_idx] == elm);
+		parent->childs[parent->nb_valid_childs - 1]->child_idx = elm->child_idx;
+		parent->childs[elm->child_idx] = parent->childs[parent->nb_valid_childs - 1];
+		parent->nb_valid_childs--;
+	}
+	free(elm);
 
 }
 static struct link_list *add_child(struct link_list *parent, char *dns_part){
@@ -216,7 +213,7 @@ static int is_valid(struct link_list *in){
 	time_t timestamp_diff = timestamp_current - in->timestamp;
 	if(timestamp_diff > in->ttl){
 		int idx = find_child_by_ref(in);
-		remove_child(in->parent,idx);
+		remove_child(in);
 		return FALSE;
 	}
 	return TRUE;
