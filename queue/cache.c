@@ -15,7 +15,7 @@
 static struct link_list *root = NULL;
 static FILE *log_file = NULL;
 
-static init_root(void){
+static void init_root(void){
 	root = calloc(1,sizeof(*root)); // This will never be freed except at the end of the program.
 
 	root->parent = NULL;
@@ -28,7 +28,7 @@ static init_root(void){
 	root->nb_ip = 0;
 	root->dns_name_part = NULL;
 	root->timestamp = 0;
-	root-ttl = 0;
+	root->ttl = 0;
 }
 
 
@@ -48,7 +48,7 @@ static char **split_dns(char *dns_name, int *nb_parts){
 	char **parts = NULL;
 	int len_part=0;
 
-	*nb_parts = 0
+	*nb_parts = 0;
 
 
 	for(int i=0;i<len_name+1;++i){
@@ -91,6 +91,7 @@ static int find_child_by_dns_part(struct link_list *parent, char *dns_part){
 		}
 		parent = root;
 	}
+	int i;
 	for(i=0; i < parent->nb_valid_childs ; ++i){
 		if(strcmp(dns_part,parent->childs[i].dns_name_part) == 0){
 			break;
@@ -101,6 +102,7 @@ static int find_child_by_dns_part(struct link_list *parent, char *dns_part){
 
 static int find_child_by_ref(struct link_list *child){
 	struct link_list *parent = child->parent;
+	int i;
 	for(i=0; i < parent->nb_valid_childs ; ++i){
 		if(&parent->childs[i] == child){
 			break;
@@ -116,7 +118,7 @@ static int find_in_cache(char **splitted_dns_name, int nb_parts, struct link_lis
 		int idx = find_child_by_dns_part(parent, splitted_dns_name[i]);
 		if(idx < parent->nb_valid_childs){
 			if(only_last_found == 1)
-				*founds = &parent->childs[i]
+				*founds = &parent->childs[i];
 			else
 				founds[nb_parts - i - 1] = &parent->childs[i];
 			parent = &parent->childs[i];
@@ -154,15 +156,16 @@ static void remove_child(struct link_list *parent, int idx){
 	}
 	
 	for(int i=0;i<parent->childs[idx]->nb_childs;++i){
-		remove_child(&parent->childs[idx], i);
+		remove_child(parent->childs[idx], i);
+		free(parent->childs[idx]);
+		parent->childs[idx] = NULL;
 	}
-	parent->childs[idx]->childs = NULL;
 
-	parent->childs[idx] = parent->childs[nb_valid_elm - 1];
+	parent->childs[idx] = parent->childs[parent->nb_valid_childs - 1];
 	parent->nb_valid_childs--;
 
 }
-static link_list *add_child(struct link_list *parent, char *dns_part){
+static struct link_list *add_child(struct link_list *parent, char *dns_part){
 	if(parent == NULL)
 	{
 		if(root == NULL){
@@ -175,17 +178,19 @@ static link_list *add_child(struct link_list *parent, char *dns_part){
 		parent->childs = realloc(parent->childs,(parent->nb_childs+1)*sizeof(*(parent->childs)));//never free exept at the end of the program. TODO: limit of the size
 		parent->nb_childs = 1 + parent->nb_childs;
 	}
-	parent->nb_valid_childs = parent->nb_valid_childs + 1
+	parent->nb_valid_childs = parent->nb_valid_childs + 1;
 
-	parent->childs[parent->nb_valid_childs - 1].parent = parent;
-	parent->childs[parent->nb_valid_childs - 1].list_ip = NULL;
-	parent->childs[parent->nb_valid_childs - 1].nb_ip = 0;
-	parent->childs[parent->nb_valid_childs - 1].timestamp = time(NULL);
-	parent->childs[parent->nb_valid_childs - 1].ttl = 3600;
+	parent->childs[parent->nb_valid_childs - 1] = calloc(1,sizeof(*(parent->childs[parent->nb_valid_childs - 1])));
+
+	parent->childs[parent->nb_valid_childs - 1]->parent = parent;
+	parent->childs[parent->nb_valid_childs - 1]->list_ip = NULL;
+	parent->childs[parent->nb_valid_childs - 1]->nb_ip = 0;
+	parent->childs[parent->nb_valid_childs - 1]->timestamp = time(NULL);
+	parent->childs[parent->nb_valid_childs - 1]->ttl = 3600;
 	
 	int len_dns_part = strlen(dns_part);
-	parent->childs[parent->nb_valid_childs - 1].dns_name_part = calloc(len_dns_part+1,sizeof(char)); // freed with remove_child()
-	strncpy(parent->childs[parent->nb_valid_childs - 1].dns_name_part, dns_part, len_dns_part);
+	parent->childs[parent->nb_valid_childs - 1]->dns_name_part = calloc(len_dns_part+1,sizeof(char)); // freed with remove_child()
+	strncpy(parent->childs[parent->nb_valid_childs - 1]->dns_name_part, dns_part, len_dns_part);
 
 	//control
 	for(int j=0;j<len_dns_part;++j){
@@ -193,7 +198,7 @@ static link_list *add_child(struct link_list *parent, char *dns_part){
 	}
 	assert(parent->childs[parent->nb_valid_childs - 1].dns_name_part[len_dns_part] == '\0');
 
-	return &parent->childs[parent->nb_valid_childs - 1];
+	return parent->childs[parent->nb_valid_childs - 1];
 
 }
 
@@ -219,13 +224,13 @@ static int is_valid(struct link_list *in){
 
 // --------------------------------------------------------------------------------------------
 
-struct link_list *add_entry(unsigned char *dns_name){
+struct link_list *add_entry(char *dns_name){
 
 	int nb_parts = 0;
 	char **splitted_dns_name = split_dns(dns_name, &nb_parts); // freeed in the end of this function
 
 
-	struct link_list **founds = calloc(nb_parts, sizeof(*found));
+	struct link_list **founds = calloc(nb_parts, sizeof(*founds)); //freed at the end of this function
 	struct link_list *last_found = NULL;
 
 	int nb_found = find_in_cache(splitted_dns_name, nb_parts, founds,0);
@@ -252,7 +257,7 @@ void add_ip(struct link_list *in, uint32_t ip){
 	convert_b32_to_str(ip_str, ip);
 
 	if(is_ip_in_list(in, ip) == TRUE){
-		printf("IP %s for domain %s EXIST\n",ip_str, in->dns_name);
+		printf("IP %s for domain %s EXIST\n",ip_str, in->dns_name_part);
 		return;
 	}
 	in->nb_ip++;
@@ -260,7 +265,7 @@ void add_ip(struct link_list *in, uint32_t ip){
 	in->list_ip[in->nb_ip - 1] = ip;
 
 
-	printf("Add IP %s for domain %s\n",ip_str, in->dns_name);
+	printf("Add IP %s for domain %s\n",ip_str, in->dns_name_part);
 }
 
 /*void add_multiple_ip(struct entry *in, uint32_t *ip, int nb_ips){
@@ -273,26 +278,25 @@ void set_ttl(struct link_list  *in, uint32_t ttl){
 	in->ttl = ttl;
 }
 
-int is_ip_allowed(uint32_t ip) {
+int is_ip_allowed(uint32_t ip, struct link_list  *current) {
 	char ip_str[256];
 	convert_b32_to_str(ip_str, ip);
-	
-	struct link_list *current = link_start;
-
-	while(current != NULL){
-		assert(current->in != NULL);
-		for(int i=0 ; i < current->in->nb_ip ; ++i){
-			if(current->in->list_ip[i] == ip){
-				if(is_valid(current->in) == TRUE){
-					printf("IP %s [%s]  ACCEPTED\n",ip_str, current->in->dns_name);
-					return TRUE;
-				}
-			}
-		}
-		current = current->next;
+	if(current == NULL){
+		if(root == NULL)
+			init_root();
+		current = root->childs;
 	}
-	printf("IP %s REJECT\n",ip_str);
-	return FALSE; // We didn't find the IP OR the IP is out of delay
+	if(current != NULL){
+		for(int i=0;i<current->nb_ip;++i){
+			if(current->list_ip[i] == ip)
+				return TRUE;
+		}
+		for(int i=0;i<current->nb_valid_childs;++i){
+			if(is_ip_allowed(ip,&current->childs[i]) == TRUE)
+				return TRUE;
+		}
+	}
+	return FALSE;
 }
 
 void set_log_file(FILE *file){

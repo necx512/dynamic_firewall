@@ -5,7 +5,7 @@ struct link_list
 {
 	struct link_list *parent;
 
-	struct link_list *childs;
+	struct link_list **childs;
 	int nb_valid_childs;
 	int nb_childs;
 
@@ -17,9 +17,9 @@ struct link_list
 	uint32_t ttl;
 };
 
-struct entry *add_entry(unsigned char *dns_name);
-void add_ip(struct entry *in, uint32_t ip);
-void set_ttl(struct entry *in, uint32_t ttl);
-int is_ip_allowed(uint32_t ip);
+struct link_list *add_entry(char *dns_name);
+void add_ip(struct link_list *in, uint32_t ip);
+void set_ttl(struct link_list *in, uint32_t ttl);
+int is_ip_allowed(uint32_t ip, struct link_list *current);
 void set_log_file(FILE *file);
 #endif
