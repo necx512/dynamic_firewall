@@ -223,7 +223,7 @@ static int is_ip_in_list(struct link_list *in, uint32_t ip){
 }
 
 // OK here
-/*static int is_valid(struct link_list *in){
+static int is_valid(struct link_list *in){
 	time_t timestamp_current = time(NULL);
 	time_t timestamp_diff = timestamp_current - in->timestamp;
 	if(timestamp_diff > in->ttl){
@@ -231,7 +231,7 @@ static int is_ip_in_list(struct link_list *in, uint32_t ip){
 		return FALSE;
 	}
 	return TRUE;
-}*/
+}
 
 // --------------------------------------------------------------------------------------------
 
@@ -290,7 +290,13 @@ void print_item(struct link_list *in){
 	}
 	printf("\ttimestamp = %ld\n",in->timestamp);
 	printf("\tttl = %d\n",in->ttl);
+	if(is_valid(in) == TRUE){
+		printf("\tis_valid : TRUE\n");
+	} else {
+		printf("\tis_valid : FALSE\n");
+	}
 }
+
 void print_tree(struct link_list *origin){
 	if(origin == NULL)
 		origin = root;
@@ -551,7 +557,7 @@ int main(){
 
 	add_ip(new_entry_google_fr,0x11223344);
 
-	set_ttl(new_entry_test_meteo_com, 60);
+	set_ttl(new_entry_test_meteo_com, 5);
 
 	/*printf("===============================\n");
 	print_item(new_entry_google_fr);
@@ -568,6 +574,9 @@ int main(){
 	printf("===============================\n");
 	print_item(new_entry_test_meteo_com);
 	printf("\n");*/
+	print_tree(NULL);
+	sleep(10);
+	print_tree(NULL);
 	print_tree(NULL);
 
 //	remove_child(root->childs[0]);
