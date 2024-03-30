@@ -293,7 +293,7 @@ void print_item(struct link_list *in){
 	if(is_valid(in) == TRUE){
 		printf("\tis_valid : TRUE\n");
 	} else {
-		printf("\tis_valid : FALSE\n");
+		printf("\tis_valid : FALSE. This node has been deleted just after checking the validity and will not print again\n");
 	}
 }
 
