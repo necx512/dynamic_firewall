@@ -31,11 +31,6 @@ static void init_root(void){
 	root->ttl = 0;
 }
 
-static void free_root(void){
-	assert(root->nb_childs > 0);
-	free(root->childs);
-	free(root);
-}
 
 
 static void convert_b32_to_str(char strret[256], uint32_t nbr){
@@ -173,6 +168,15 @@ static void remove_child(struct link_list *elm){
 	free(elm);
 
 }
+static void free_root(void){
+	assert(root->nb_childs > 0);
+	for(int i=0;i<root->nb_valid_childs;++i){
+		remove_child(root->childs[i]);
+	}
+	free(root->childs);
+	free(root);
+	root = NULL;
+}
 static struct link_list *add_child(struct link_list *parent, char *dns_part){
 	if(parent == NULL)
 	{
@@ -238,14 +242,19 @@ struct link_list *add_entry(char *dns_name){
 	struct link_list **founds = calloc(nb_parts, sizeof(*founds)); //freed at the end of this function
 	struct link_list *last_found = NULL;
 
-	int nb_found = find_in_cache(splitted_dns_name, nb_parts, founds,0);
-	last_found = founds[nb_found-1];
+	int nb_found = find_in_cache(splitted_dns_name, nb_parts, founds,0); // can be 0 to nb_parts
+	if(nb_found == 0)
+		last_found = root;
+	else
+		last_found = founds[nb_found-1];
+
 
 	if(nb_found == nb_parts){
 		return last_found;
 	} else {
-		for(int i=nb_parts;i<nb_found;++i){
-			last_found = add_child(last_found,splitted_dns_name[i]);
+		for(int i=nb_found;i<nb_parts;++i){
+			printf("Adding %s to %s\n",splitted_dns_name[nb_parts-i-1],last_found->dns_name_part);
+			last_found = add_child(last_found,splitted_dns_name[nb_parts-i-1]);
 			assert(last_found != NULL || i == nb_found - 1);
 		}
 	}
@@ -477,18 +486,36 @@ int main(){
 
 	struct link_list **founds = calloc(nb_parts,sizeof(*founds));
 	
-	find_in_cache(parts, nb_parts, founds, 0);
+	int nb_parts_ret = find_in_cache(parts, nb_parts, founds, 0);
+	assert(nb_parts_ret == nb_parts);
 	assert(strcmp(founds[0]->dns_name_part, "fr") == 0);
 	assert(strcmp(founds[1]->dns_name_part, "google") == 0);
 
 	remove_child(elm_com);
+	nb_parts_ret = find_in_cache(parts, nb_parts, founds, 0);
+	assert(nb_parts_ret == 0);
+
+
 	free_splitted_dns(parts,nb_parts);
 	free(founds);
 
 
+	
 
 
 
+	free_root();
+
+
+
+	//////////////////////////////////
+	init_root();
+	struct link_list *new_entry_google_fr = add_entry("google.fr");
+	struct link_list *new_entry_meteo_fr = add_entry("meteo.fr");
+	struct link_list *new_entry_test_meteo_fr = add_entry("test.meteo.fr");
+	struct link_list *new_entry_test_meteo_com = add_entry("test.meteo.com");
+
+//	remove_child(root->childs[0]);
 	free_root();
 
 
