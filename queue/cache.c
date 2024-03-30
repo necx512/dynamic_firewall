@@ -142,6 +142,16 @@ static int find_in_cache(char **splitted_dns_name, int nb_parts, struct link_lis
 
 static void remove_child(struct link_list *elm){
 
+	//free childs
+	int nb_elements = elm->nb_valid_childs;
+	for(int i=0;i<nb_elements;++i){
+		remove_child(elm->childs[i]);
+	}
+	assert(elm->nb_valid_childs == 0);
+
+	if(elm->nb_childs != 0)
+		free(elm->childs);
+	
 	if(elm->dns_name_part != NULL){
 		free(elm->dns_name_part);
 		elm->dns_name_part = NULL;
@@ -150,13 +160,6 @@ static void remove_child(struct link_list *elm){
 		free(elm->list_ip);
 		elm->list_ip = NULL;
 	}
-
-	//free childs
-	for(int i=0;i<elm->nb_valid_childs;++i){
-		remove_child(elm->childs[i]);
-	}
-	if(elm->nb_childs != 0)
-		free(elm->childs);
 
 
 	//detach from parent
@@ -437,13 +440,41 @@ int main(){
 
 	assert(elm_google->nb_valid_childs == 0);
 
+	remove_child(elm_com);
+
+
+	// Testing multiple childs
+	elm_com = add_child(NULL, "com");
+	elm_google = add_child(elm_com,"google");
+	struct link_list *elm_youtube = add_child(elm_com,"youtube");
+	assert(strcmp(elm_com->dns_name_part,"com") == 0);
 	debug=1;
 	remove_child(elm_com);
 
 
+	// find_child_by_dns_part
+	elm_com = add_child(NULL, "com");
+	elm_google = add_child(elm_com,"google");
+	elm_youtube = add_child(elm_com,"youtube");
+	
+	int idx = find_child_by_dns_part(elm_com, "google");
+	assert(idx == 0);
+	assert(strcmp(elm_com->childs[idx]->dns_name_part,"google")==0);
+	
+	idx = find_child_by_dns_part(elm_com, "youtube");
+	assert(idx == 1);
+	assert(strcmp(elm_com->childs[idx]->dns_name_part,"youtube")==0);
 
+	remove_child(elm_com);
 	
 
+	//find_in_cache
+	
+	nb_parts = 0;
+        parts = split_dns("google.fr", &nb_parts);
+	struct link_list **founds = calloc(nb_parts,sizeof(*founds));
+	
+	find_in_cache(parts, nb_parts, founds/* should be allocated*/, 0);
 	//iiiiiiiiiii
 
 	free_root();
