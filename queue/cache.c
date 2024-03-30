@@ -574,9 +574,12 @@ int main(){
 	printf("===============================\n");
 	print_item(new_entry_test_meteo_com);
 	printf("\n");*/
+	printf("================= PRINT TREE ==========================\n");
 	print_tree(NULL);
 	sleep(10);
+	printf("================= PRINT TREE ==========================\n");
 	print_tree(NULL);
+	printf("================= PRINT TREE ==========================\n");
 	print_tree(NULL);
 
 //	remove_child(root->childs[0]);
