@@ -169,11 +169,13 @@ static void remove_child(struct link_list *elm){
 
 }
 static void free_root(void){
-	assert(root->nb_childs > 0);
-	for(int i=0;i<root->nb_valid_childs;++i){
+	assert(root != NULL);
+	int nb_valid_childs = root->nb_valid_childs;
+	for(int i=0;i<nb_valid_childs;++i){
 		remove_child(root->childs[i]);
 	}
-	free(root->childs);
+	if(root->nb_childs != 0)
+		free(root->childs);
 	free(root);
 	root = NULL;
 }
@@ -268,6 +270,21 @@ struct link_list *add_entry(char *dns_name){
 
 
 
+}
+static void print_complete_dns_from_bottom_item(struct link_list *in){
+	struct link_list *current = in;
+	while(current->parent != root){
+		printf("%s.",current->dns_name_part);
+		current = current->parent;
+	}
+	printf("%s\n",current->dns_name_part);
+
+}
+void print_item(struct link_list *in){
+	print_complete_dns_from_bottom_item(in);
+	printf("\tnb_ip = %d\n",in->nb_ip);
+	printf("\ttimestamp = %ld\n",in->timestamp);
+	printf("\tttl = %d\n",in->ttl);
 }
 
 void add_ip(struct link_list *in, uint32_t ip){
@@ -514,6 +531,22 @@ int main(){
 	struct link_list *new_entry_meteo_fr = add_entry("meteo.fr");
 	struct link_list *new_entry_test_meteo_fr = add_entry("test.meteo.fr");
 	struct link_list *new_entry_test_meteo_com = add_entry("test.meteo.com");
+
+	printf("===============================\n");
+	print_item(new_entry_google_fr);
+	printf("\n");
+	
+	printf("===============================\n");
+	print_item(new_entry_meteo_fr);
+	printf("\n");
+	
+	printf("===============================\n");
+	print_item(new_entry_test_meteo_fr);
+	printf("\n");
+
+	printf("===============================\n");
+	print_item(new_entry_test_meteo_com);
+	printf("\n");
 
 //	remove_child(root->childs[0]);
 	free_root();

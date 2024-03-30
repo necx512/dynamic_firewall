@@ -23,4 +23,5 @@ void add_ip(struct link_list *in, uint32_t ip);
 void set_ttl(struct link_list *in, uint32_t ttl);
 int is_ip_allowed(uint32_t ip, struct link_list *current);
 void set_log_file(FILE *file);
+void print_item(struct link_list *in);
 #endif
