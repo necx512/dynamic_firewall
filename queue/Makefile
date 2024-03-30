@@ -3,4 +3,4 @@ all:
 test:
 	gcc -DTEST -g3 -ggdb -Wall -lmnl -lnetfilter_queue -o test cache.c
 clean:
-	rm -f nf-queue *.o test
+	rm -f nf-queue *.o test vgcore.*
