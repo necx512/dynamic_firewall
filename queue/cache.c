@@ -14,7 +14,7 @@
 
 static struct link_list *root = NULL;
 static FILE *log_file = NULL;
-
+static int debug = 0;
 static void init_root(void){
 	root = calloc(1,sizeof(*root)); // This will never be freed except at the end of the program.
 
@@ -29,6 +29,12 @@ static void init_root(void){
 	root->dns_name_part = NULL;
 	root->timestamp = 0;
 	root->ttl = 0;
+}
+
+static void free_root(void){
+	assert(root->nb_childs > 0);
+	free(root->childs);
+	free(root);
 }
 
 
@@ -53,7 +59,9 @@ static char **split_dns(char *dns_name, int *nb_parts){
 
 	for(int i=0;i<len_name+1;++i){
 		if(i == len_name || dns_name[i] == '.') {
-			parts = realloc(*parts,(*nb_parts + 1)*sizeof(parts)); // to be freed -> free_splitted_dns()
+			if(len_part == 0)
+				continue;
+			parts = realloc(parts,(*nb_parts + 1)*sizeof(parts)); // to be freed -> free_splitted_dns()
 			parts[*nb_parts] = calloc(len_part+1, sizeof(*parts[*nb_parts])); // to be freed -> free_splitted_dns
 			strncpy(parts[*nb_parts], tmp, len_part);
 
@@ -76,6 +84,7 @@ static char **split_dns(char *dns_name, int *nb_parts){
 
 }
 void free_splitted_dns(char **parts, int nb_parts){
+
 	for(int i=0;i<nb_parts;++i){
 		free(parts[i]);
 		parts[i] = NULL;
@@ -86,30 +95,28 @@ void free_splitted_dns(char **parts, int nb_parts){
 static int find_child_by_dns_part(struct link_list *parent, char *dns_part){
 	if(parent == NULL)
 	{
-		if(root == NULL){
-			init_root();
-		}
+		assert(root != NULL);
 		parent = root;
 	}
 	int i;
 	for(i=0; i < parent->nb_valid_childs ; ++i){
-		if(strcmp(dns_part,parent->childs[i].dns_name_part) == 0){
+		if(strcmp(dns_part,parent->childs[i]->dns_name_part) == 0){
 			break;
 		}
 	}
 	return i;// if i == parent->nb_valid_childs => not found
 }
 
-static int find_child_by_ref(struct link_list *child){
+/*static int find_child_by_ref(struct link_list *child){
 	struct link_list *parent = child->parent;
 	int i;
 	for(i=0; i < parent->nb_valid_childs ; ++i){
-		if(&parent->childs[i] == child){
+		if((long)&parent->childs[i] == (long)child){
 			break;
 		}
 	}
 	return i;// if i == parent->nb_valid_childs => not found
-}
+}*/
 
 static int find_in_cache(char **splitted_dns_name, int nb_parts, struct link_list **founds/* should be allocated*/, int only_last_found){
 	struct link_list *parent = NULL;
@@ -118,10 +125,10 @@ static int find_in_cache(char **splitted_dns_name, int nb_parts, struct link_lis
 		int idx = find_child_by_dns_part(parent, splitted_dns_name[i]);
 		if(idx < parent->nb_valid_childs){
 			if(only_last_found == 1)
-				*founds = &parent->childs[i];
+				*founds = parent->childs[i];
 			else
-				founds[nb_parts - i - 1] = &parent->childs[i];
-			parent = &parent->childs[i];
+				founds[nb_parts - i - 1] = parent->childs[i];
+			parent = parent->childs[i];
 		} else {
 			break;
 		}
@@ -147,8 +154,9 @@ static void remove_child(struct link_list *elm){
 	//free childs
 	for(int i=0;i<elm->nb_valid_childs;++i){
 		remove_child(elm->childs[i]);
-		free(elm->childs[i]);
 	}
+	if(elm->nb_childs != 0)
+		free(elm->childs);
 
 
 	//detach from parent
@@ -165,9 +173,7 @@ static void remove_child(struct link_list *elm){
 static struct link_list *add_child(struct link_list *parent, char *dns_part){
 	if(parent == NULL)
 	{
-		if(root == NULL){
-			init_root();
-		}
+		assert(root != NULL);
 		parent = root;
 	}
 
@@ -191,9 +197,9 @@ static struct link_list *add_child(struct link_list *parent, char *dns_part){
 
 	//control
 	for(int j=0;j<len_dns_part;++j){
-		assert(parent->childs[parent->nb_valid_childs - 1].dns_name_part[j] == dns_part[j]);
+		assert(parent->childs[parent->nb_valid_childs - 1]->dns_name_part[j] == dns_part[j]);
 	}
-	assert(parent->childs[parent->nb_valid_childs - 1].dns_name_part[len_dns_part] == '\0');
+	assert(parent->childs[parent->nb_valid_childs - 1]->dns_name_part[len_dns_part] == '\0');
 
 	return parent->childs[parent->nb_valid_childs - 1];
 
@@ -208,16 +214,15 @@ static int is_ip_in_list(struct link_list *in, uint32_t ip){
 }
 
 // OK here
-static int is_valid(struct link_list *in){
+/*static int is_valid(struct link_list *in){
 	time_t timestamp_current = time(NULL);
 	time_t timestamp_diff = timestamp_current - in->timestamp;
 	if(timestamp_diff > in->ttl){
-		int idx = find_child_by_ref(in);
 		remove_child(in);
 		return FALSE;
 	}
 	return TRUE;
-}
+}*/
 
 // --------------------------------------------------------------------------------------------
 
@@ -246,6 +251,10 @@ struct link_list *add_entry(char *dns_name){
 	free_splitted_dns(splitted_dns_name,nb_parts);
 	splitted_dns_name = NULL;
 	nb_parts = 0;
+
+	return last_found;
+
+
 
 }
 
@@ -279,9 +288,13 @@ int is_ip_allowed(uint32_t ip, struct link_list  *current) {
 	char ip_str[256];
 	convert_b32_to_str(ip_str, ip);
 	if(current == NULL){
-		if(root == NULL)
-			init_root();
-		current = root->childs;
+		assert(root != NULL);
+		if(root->nb_valid_childs < 1)
+			current = NULL;
+		else { 
+			assert(root->childs != NULL);
+			current = root->childs[0];
+		}
 	}
 	if(current != NULL){
 		for(int i=0;i<current->nb_ip;++i){
@@ -289,7 +302,7 @@ int is_ip_allowed(uint32_t ip, struct link_list  *current) {
 				return TRUE;
 		}
 		for(int i=0;i<current->nb_valid_childs;++i){
-			if(is_ip_allowed(ip,&current->childs[i]) == TRUE)
+			if(is_ip_allowed(ip,current->childs[i]) == TRUE)
 				return TRUE;
 		}
 	}
@@ -299,3 +312,148 @@ int is_ip_allowed(uint32_t ip, struct link_list  *current) {
 void set_log_file(FILE *file){
 	log_file = file;
 }
+
+#ifdef TEST
+int main(){
+	init_root();
+	assert(root != NULL);
+
+
+	char strret[256];
+	uint32_t nbr = ntohl(0x11223344);
+	convert_b32_to_str(strret, 0x11223344);
+	assert(strcmp(strret,"68.51.34.17") == 0);
+	printf("\e[92mconvert_b32_to_str OK\e[0m\n");
+
+
+
+
+	// split_dns
+	// free_splitted_dns by valgrind
+	int nb_parts = 0;
+	char **parts = NULL;
+	
+	parts = split_dns("google.fr", &nb_parts);
+	assert(nb_parts == 2);
+	assert(strcmp(parts[0],"google") == 0);
+	assert(strcmp(parts[1],"fr") == 0);
+	free_splitted_dns(parts,nb_parts);
+
+	parts = split_dns("meteo.com", &nb_parts);
+	assert(nb_parts == 2);
+	assert(strcmp(parts[0],"meteo") == 0);
+	assert(strcmp(parts[1],"com") == 0);
+	free_splitted_dns(parts,nb_parts);
+	
+	parts = split_dns("abc.de.fe.jud.sez", &nb_parts);
+	assert(nb_parts == 5);
+	assert(strcmp(parts[0],"abc") == 0);
+	assert(strcmp(parts[1],"de") == 0);
+	assert(strcmp(parts[2],"fe") == 0);
+	assert(strcmp(parts[3],"jud") == 0);
+	assert(strcmp(parts[4],"sez") == 0);
+	free_splitted_dns(parts,nb_parts);
+	
+	parts = split_dns("google.fr.", &nb_parts);
+	assert(nb_parts == 2);
+	assert(strcmp(parts[0],"google") == 0);
+	assert(strcmp(parts[1],"fr") == 0);
+	free_splitted_dns(parts,nb_parts);
+	
+	parts = split_dns("google.fr..", &nb_parts);
+	assert(nb_parts == 2);
+	assert(strcmp(parts[0],"google") == 0);
+	assert(strcmp(parts[1],"fr") == 0);
+	free_splitted_dns(parts,nb_parts);
+	
+	parts = split_dns("google..fr", &nb_parts);
+	assert(nb_parts == 2);
+	assert(strcmp(parts[0],"google") == 0);
+	assert(strcmp(parts[1],"fr") == 0);
+	free_splitted_dns(parts,nb_parts);
+	
+	parts = split_dns(".google.fr", &nb_parts);
+	assert(nb_parts == 2);
+	assert(strcmp(parts[0],"google") == 0);
+	assert(strcmp(parts[1],"fr") == 0);
+	free_splitted_dns(parts,nb_parts);
+	
+	printf("\e[92msplit_dns OK\e[0m\n");
+
+
+
+	// add child
+	// remove_child
+	struct link_list *elm = add_child(NULL, "com");
+	assert(strcmp(elm->dns_name_part,"com") == 0);
+	assert(root->nb_valid_childs == 1);
+	remove_child(elm);
+	printf("\e[92madd_child / remove_child OK\e[0m\n");
+
+
+	// Manually add
+	struct link_list *elm_com = add_child(NULL, "com");
+	struct link_list *elm_google = add_child(elm_com,"google");
+	struct link_list *elm_a = add_child(elm_google,"a");
+	struct link_list *elm_heliott = add_child(elm_a,"heliott");
+
+	assert(strcmp(elm_com->dns_name_part,"com") == 0);
+	assert(strcmp(elm_google->dns_name_part,"google") == 0);
+	assert(strcmp(elm_a->dns_name_part,"a") == 0);
+	assert(strcmp(elm_heliott->dns_name_part,"heliott") == 0);
+
+	assert(elm_google->parent == elm_com);
+	assert(elm_a->parent == elm_google);
+	assert(elm_heliott->parent == elm_a);
+
+	assert(elm_com->nb_valid_childs == 1);
+	assert(elm_com->childs[0] == elm_google);
+
+	assert(elm_google->nb_valid_childs == 1);
+	assert(elm_google->childs[0] == elm_a);
+
+	assert(elm_a->nb_valid_childs == 1);
+	assert(elm_a->childs[0] == elm_heliott);
+
+	assert(elm_heliott->nb_valid_childs == 0);
+
+
+	remove_child(elm_heliott);
+	remove_child(elm_a);
+	remove_child(elm_google);
+	remove_child(elm_com);
+	
+	// Test remove_child complete
+	elm_com = add_child(NULL, "com");
+	elm_google = add_child(elm_com,"google");
+
+	assert(strcmp(elm_com->dns_name_part,"com") == 0);
+	assert(strcmp(elm_google->dns_name_part,"google") == 0);
+
+	assert(elm_google->parent == elm_com);
+
+	assert(elm_com->nb_valid_childs == 1);
+	assert(elm_com->childs[0] == elm_google);
+
+	assert(elm_google->nb_valid_childs == 0);
+
+	debug=1;
+	remove_child(elm_com);
+
+
+
+	
+
+	//iiiiiiiiiii
+
+	free_root();
+
+
+
+
+	return 0;
+
+
+
+}
+#endif

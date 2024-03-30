@@ -13,7 +13,7 @@ struct link_list
 
 	uint32_t *list_ip;
 	uint32_t nb_ip;//TODO : definir un max
-	unsigned char *dns_name_part;
+	char *dns_name_part;
 	time_t timestamp; 
 	uint32_t ttl;
 };
