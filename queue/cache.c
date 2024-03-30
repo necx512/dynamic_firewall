@@ -281,10 +281,27 @@ static void print_complete_dns_from_bottom_item(struct link_list *in){
 
 }
 void print_item(struct link_list *in){
+	char strret[256];
 	print_complete_dns_from_bottom_item(in);
 	printf("\tnb_ip = %d\n",in->nb_ip);
+	for(int i=0;i<in->nb_ip;++i){
+	        convert_b32_to_str(strret, ntohl(in->list_ip[i]));
+		printf("\t\t%s\n",strret);
+	}
 	printf("\ttimestamp = %ld\n",in->timestamp);
 	printf("\tttl = %d\n",in->ttl);
+}
+void print_tree(struct link_list *origin){
+	if(origin == NULL)
+		origin = root;
+	if(origin != root && origin->nb_valid_childs == 0){
+		print_item(origin);
+	} else {
+		for(int i=0;i<origin->nb_valid_childs;++i){
+			assert(origin->childs[i] != NULL);
+			print_tree(origin->childs[i]);
+		}
+	}
 }
 
 void add_ip(struct link_list *in, uint32_t ip){
@@ -532,7 +549,11 @@ int main(){
 	struct link_list *new_entry_test_meteo_fr = add_entry("test.meteo.fr");
 	struct link_list *new_entry_test_meteo_com = add_entry("test.meteo.com");
 
-	printf("===============================\n");
+	add_ip(new_entry_google_fr,0x11223344);
+
+	set_ttl(new_entry_test_meteo_com, 60);
+
+	/*printf("===============================\n");
 	print_item(new_entry_google_fr);
 	printf("\n");
 	
@@ -546,7 +567,8 @@ int main(){
 
 	printf("===============================\n");
 	print_item(new_entry_test_meteo_com);
-	printf("\n");
+	printf("\n");*/
+	print_tree(NULL);
 
 //	remove_child(root->childs[0]);
 	free_root();
