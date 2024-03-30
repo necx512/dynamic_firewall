@@ -3,3 +3,5 @@ Si ca existe, on libere la liste d'IP et on en recré une
 
 
 Faire juste une demande pour un nouveau TLD et pas pour chaque sous domaine
+
+Quand je supprime un noeud invalid, verifier aussi la validité du noed parent

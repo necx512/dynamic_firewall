@@ -553,7 +553,7 @@ int main(){
 	struct link_list *new_entry_google_fr = add_entry("google.fr");
 	struct link_list *new_entry_meteo_fr = add_entry("meteo.fr");
 	struct link_list *new_entry_test_meteo_fr = add_entry("test.meteo.fr");
-	struct link_list *new_entry_test_meteo_com = add_entry("test.meteo.com");
+	struct link_list *new_entry_test_meteo_com = add_entry("test.meteo.net");
 
 	add_ip(new_entry_google_fr,0x11223344);
 
