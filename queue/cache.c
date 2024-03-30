@@ -119,16 +119,16 @@ static int find_child_by_dns_part(struct link_list *parent, char *dns_part){
 }*/
 
 static int find_in_cache(char **splitted_dns_name, int nb_parts, struct link_list **founds/* should be allocated*/, int only_last_found){
-	struct link_list *parent = NULL;
+	struct link_list *parent = root;
 	int i;
 	for(i=nb_parts-1; i>=0;--i){
 		int idx = find_child_by_dns_part(parent, splitted_dns_name[i]);
 		if(idx < parent->nb_valid_childs){
 			if(only_last_found == 1)
-				*founds = parent->childs[i];
+				*founds = parent->childs[idx];
 			else
-				founds[nb_parts - i - 1] = parent->childs[i];
-			parent = parent->childs[i];
+				founds[nb_parts - i - 1] = parent->childs[idx];
+			parent = parent->childs[idx];
 		} else {
 			break;
 		}
@@ -469,13 +469,25 @@ int main(){
 	
 
 	//find_in_cache
+	elm_com = add_child(NULL, "fr");
+	elm_google = add_child(elm_com,"google");
 	
 	nb_parts = 0;
         parts = split_dns("google.fr", &nb_parts);
+
 	struct link_list **founds = calloc(nb_parts,sizeof(*founds));
 	
-	find_in_cache(parts, nb_parts, founds/* should be allocated*/, 0);
-	//iiiiiiiiiii
+	find_in_cache(parts, nb_parts, founds, 0);
+	assert(strcmp(founds[0]->dns_name_part, "fr") == 0);
+	assert(strcmp(founds[1]->dns_name_part, "google") == 0);
+
+	remove_child(elm_com);
+	free_splitted_dns(parts,nb_parts);
+	free(founds);
+
+
+
+
 
 	free_root();
 
