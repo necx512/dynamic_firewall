@@ -67,7 +67,7 @@ void handle_my_ip_packet(struct iphdr *iph){
 		struct dns_queries *queries = export_dns_queries(dnshdr);
 		struct dns_replies *replies = export_dns_replies(dnshdr, queries);
 
-		struct entry *in = NULL;
+		struct link_list *in = NULL;
 		
 		
 		for(int i=0; i < replies->nb_replies ; ++i){
@@ -76,8 +76,10 @@ void handle_my_ip_packet(struct iphdr *iph){
 				found=1;
 				uint32_t ip = *(uint32_t *)(replies->entries[i].data);
 				if(in == NULL)
-					in = add_entry((unsigned char *)queries->entries[0].name);
+					in = add_entry(queries->entries[0].name);
 				add_ip(in, ip);
+				printf("==========================\n");
+				print_tree(NULL);
 			}
 		}
 
@@ -87,7 +89,7 @@ void handle_my_ip_packet(struct iphdr *iph){
 			printf("\n");
 	} else {
 		if(tcphdr->syn == 1){
-			is_ip_allowed(iph->daddr);
+			is_ip_allowed(iph->daddr,NULL);
 		}
 		//iph->dest
 	}
@@ -97,7 +99,7 @@ static int queue_cb(const struct nlmsghdr *nlh, void *data)
 {
         struct nfqnl_msg_packet_hdr *ph = NULL;
         struct nlattr *attr[NFQA_MAX+1] = {};
-        uint32_t id = 0, skbinfo;
+        uint32_t id = 0/*, skbinfo*/;
         struct nfgenmsg *nfg;
         uint16_t plen;
 
@@ -120,7 +122,7 @@ static int queue_cb(const struct nlmsghdr *nlh, void *data)
 	struct iphdr *iph = (struct iphdr *) payload;
 	
 
-        skbinfo = attr[NFQA_SKB_INFO] ? ntohl(mnl_attr_get_u32(attr[NFQA_SKB_INFO])) : 0;
+        //skbinfo = attr[NFQA_SKB_INFO] ? ntohl(mnl_attr_get_u32(attr[NFQA_SKB_INFO])) : 0;
 
         if (attr[NFQA_CAP_LEN]) {
                 uint32_t orig_len = ntohl(mnl_attr_get_u32(attr[NFQA_CAP_LEN]));
@@ -166,6 +168,7 @@ int main(int argc, char *argv[])
 {
 	FILE *log_file = fopen("/tmp/log","w");
 	set_log_file(log_file);
+	init_root();
 
 
 	assert(sizeof(struct dnshdr) == 12);

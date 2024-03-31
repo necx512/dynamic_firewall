@@ -14,8 +14,7 @@
 
 static struct link_list *root = NULL;
 static FILE *log_file = NULL;
-static int debug = 0;
-static void init_root(void){
+void init_root(void){
 	root = calloc(1,sizeof(*root)); // This will never be freed except at the end of the program.
 
 	root->parent = NULL;
@@ -168,7 +167,7 @@ static void remove_child(struct link_list *elm){
 	free(elm);
 
 }
-static void free_root(void){
+void free_root(void){
 	assert(root != NULL);
 	int nb_valid_childs = root->nb_valid_childs;
 	for(int i=0;i<nb_valid_childs;++i){
@@ -337,15 +336,12 @@ void set_ttl(struct link_list  *in, uint32_t ttl){
 }
 
 int is_ip_allowed(uint32_t ip, struct link_list  *current) {
-	char ip_str[256];
-	convert_b32_to_str(ip_str, ip);
 	if(current == NULL){
 		assert(root != NULL);
 		if(root->nb_valid_childs < 1)
 			current = NULL;
 		else { 
-			assert(root->childs != NULL);
-			current = root->childs[0];
+			current = root;
 		}
 	}
 	if(current != NULL){
