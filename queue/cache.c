@@ -279,7 +279,7 @@ static void print_complete_dns_from_bottom_item(struct link_list *in){
 	printf("%s\n",current->dns_name_part);
 
 }
-void print_item(struct link_list *in){
+static void print_item(struct link_list *in){
 	char strret[256];
 	print_complete_dns_from_bottom_item(in);
 	printf("\tnb_ip = %d\n",in->nb_ip);
@@ -331,9 +331,9 @@ void add_ip(struct link_list *in, uint32_t ip){
 	}
 }*/
 
-void set_ttl(struct link_list  *in, uint32_t ttl){
+/*static void set_ttl(struct link_list  *in, uint32_t ttl){
 	in->ttl = ttl;
-}
+}*/
 
 int is_ip_allowed(uint32_t ip, struct link_list  *current) {
 	if(current == NULL){

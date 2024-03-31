@@ -232,6 +232,7 @@ int main(int argc, char *argv[])
         ret = 1;
         mnl_socket_setsockopt(nl, NETLINK_NO_ENOBUFS, &ret, sizeof(int));
 
+	int nb_req = 0;
         for (;;) {
                 ret = mnl_socket_recvfrom(nl, buf, sizeof_buf);
                 if (ret == -1) {
@@ -244,7 +245,13 @@ int main(int argc, char *argv[])
                         perror("mnl_cb_run");
                         exit(EXIT_FAILURE);
                 }
+		printf("================================================> nb_req = %d\n",nb_req);
+		if(nb_req == 100)
+			break;
+		nb_req++;
         }
+
+	free_root();
 
         mnl_socket_close(nl);
 

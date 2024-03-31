@@ -20,10 +20,8 @@ struct link_list
 
 struct link_list *add_entry(char *dns_name);
 void add_ip(struct link_list *in, uint32_t ip);
-void set_ttl(struct link_list *in, uint32_t ttl);
 int is_ip_allowed(uint32_t ip, struct link_list *current);
 void set_log_file(FILE *file);
-void print_item(struct link_list *in);
 void init_root(void);
 void free_root(void);
 void free_splitted_dns(char **parts, int nb_parts);
