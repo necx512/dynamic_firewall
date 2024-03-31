@@ -251,9 +251,7 @@ struct link_list *add_entry(char *dns_name){
 		last_found = founds[nb_found-1];
 
 
-	if(nb_found == nb_parts){
-		return last_found;
-	} else {
+	if(nb_found != nb_parts){
 		for(int i=nb_found;i<nb_parts;++i){
 			printf("Adding %s to %s\n",splitted_dns_name[nb_parts-i-1],last_found->dns_name_part);
 			last_found = add_child(last_found,splitted_dns_name[nb_parts-i-1]);
@@ -593,6 +591,13 @@ int main(){
 	print_tree(NULL);
 
 //	remove_child(root->childs[0]);
+	free_root();
+
+
+	///////////////////////////////////
+	init_root();
+        add_entry("ipv4-c121-cdg001-ix.1.oca.nflxvideo.net");
+        add_entry("ipv4-c121-cdg001-ix.1.oca.nflxvideo.net");
 	free_root();
 
 
