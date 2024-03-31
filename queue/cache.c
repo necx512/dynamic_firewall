@@ -198,6 +198,7 @@ static struct link_list *add_child(struct link_list *parent, char *dns_part){
 	parent->childs[parent->nb_valid_childs - 1]->nb_ip = 0;
 	parent->childs[parent->nb_valid_childs - 1]->timestamp = time(NULL);
 	parent->childs[parent->nb_valid_childs - 1]->ttl = 3600;
+	parent->childs[parent->nb_valid_childs - 1]->child_idx = parent->nb_valid_childs - 1;
 	
 	int len_dns_part = strlen(dns_part);
 	parent->childs[parent->nb_valid_childs - 1]->dns_name_part = calloc(len_dns_part+1,sizeof(char)); // freed with remove_child()
@@ -362,7 +363,20 @@ void set_log_file(FILE *file){
 }
 
 #ifdef TEST
+
+char *random_name(){
+	char *dom = malloc(20);
+	for(int i=0;i<19;++i){
+		if(i == 4 || i==10 || i==16)
+			dom[i] = '.';
+		else
+			dom[i] = 'a'+rand()%26;
+	}
+	dom[19] = '\0';
+	return dom;
+}
 int main(){
+	srand(time(NULL));
 	init_root();
 	assert(root != NULL);
 
@@ -493,7 +507,6 @@ int main(){
 	elm_google = add_child(elm_com,"google");
 	struct link_list *elm_youtube = add_child(elm_com,"youtube");
 	assert(strcmp(elm_com->dns_name_part,"com") == 0);
-	debug=1;
 	remove_child(elm_com);
 
 
@@ -553,7 +566,7 @@ int main(){
 
 	add_ip(new_entry_google_fr,0x11223344);
 
-	set_ttl(new_entry_test_meteo_com, 5);
+	new_entry_test_meteo_com->ttl = 1;
 
 	/*printf("===============================\n");
 	print_item(new_entry_google_fr);
@@ -572,13 +585,28 @@ int main(){
 	printf("\n");*/
 	printf("================= PRINT TREE ==========================\n");
 	print_tree(NULL);
-	sleep(10);
+	printf("Sleep 2s...\n");
+	sleep(2);
 	printf("================= PRINT TREE ==========================\n");
 	print_tree(NULL);
 	printf("================= PRINT TREE ==========================\n");
 	print_tree(NULL);
 
 //	remove_child(root->childs[0]);
+	free_root();
+
+
+	/////////////
+	
+	init_root();
+
+	for(int i=0;i<10000;++i){
+		char *name = random_name();
+		add_entry(name);
+		free(name);
+	}
+
+
 	free_root();
 
 

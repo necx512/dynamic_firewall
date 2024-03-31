@@ -166,8 +166,8 @@ static int queue_cb(const struct nlmsghdr *nlh, void *data)
 
 int main(int argc, char *argv[])
 {
-	FILE *log_file = fopen("/tmp/log","w");
-	set_log_file(log_file);
+	//FILE *log_file = fopen("/tmp/log","w");
+	//set_log_file(log_file);
 	init_root();
 
 
@@ -251,6 +251,7 @@ int main(int argc, char *argv[])
 		nb_req++;
         }
 
+	free(buf);
 	free_root();
 
         mnl_socket_close(nl);
