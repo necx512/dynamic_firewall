@@ -227,6 +227,7 @@ static int is_valid(struct link_list *in){
 	time_t timestamp_current = time(NULL);
 	time_t timestamp_diff = timestamp_current - in->timestamp;
 	if(timestamp_diff > in->ttl){
+		// ask to prolongate. Keep only the last IPs seen
 		remove_child(in);
 		return FALSE;
 	}
@@ -346,7 +347,7 @@ int is_ip_allowed(uint32_t ip, struct link_list  *current) {
 	if(current != NULL){
 		for(int i=0;i<current->nb_ip;++i){
 			if(current->list_ip[i] == ip)
-				return TRUE;
+				return is_valid(current) == TRUE;
 		}
 		for(int i=0;i<current->nb_valid_childs;++i){
 			if(is_ip_allowed(ip,current->childs[i]) == TRUE)

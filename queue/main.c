@@ -246,7 +246,7 @@ int main(int argc, char *argv[])
                         exit(EXIT_FAILURE);
                 }
 		printf("================================================> nb_req = %d\n",nb_req);
-		if(nb_req == 1000)
+		if(nb_req == 100000)
 			break;
 		nb_req++;
         }

@@ -1,3 +1,5 @@
 #!/bin/bash
-iptables -A INPUT -p udp --sport 53 -j QUEUE ; iptables -A OUTPUT -p tcp -j QUEUE
-iptables -D INPUT -p udp --sport 53 -j QUEUE ; iptables -D OUTPUT -p tcp -j QUEUE
+sudo iptables -A INPUT -p udp --sport 53 -j QUEUE
+sudo iptables -A OUTPUT -p tcp -j QUEUE
+sudo iptables -D INPUT -p udp --sport 53 -j QUEUE
+sudo iptables -D OUTPUT -p tcp -j QUEUE
